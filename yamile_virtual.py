@@ -26,6 +26,7 @@ if "procesando" not in st.session_state:
 # FUNCIONES UTILITARIAS
 # =========================
 def mejorar_imagen(im_bytes):
+    """Escala de grises + aumento de resolución."""
     img = Image.open(io.BytesIO(im_bytes)).convert("L")
     img = img.resize((img.width * 2, img.height * 2))
     buf = io.BytesIO()
@@ -33,6 +34,7 @@ def mejorar_imagen(im_bytes):
     return buf.getvalue()
 
 def pdf_a_imagenes(pdf_bytes):
+    """Convierte primera y última página del PDF en imágenes PNG."""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     if len(doc) == 0:
         raise ValueError("PDF vacío o dañado.")
@@ -54,6 +56,7 @@ def limpiar_json(txt):
         return "{}"
 
 def letras_a_int(texto):
+    """Convierte número en letras a entero básico."""
     texto = texto.lower().replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ú","u")
     unidades = {
         "uno":1,"dos":2,"tres":3,"cuatro":4,"cinco":5,"seis":6,"siete":7,"ocho":8,"nueve":9,
@@ -74,6 +77,7 @@ def valores_consistentes(letras, numeros):
         return False
 
 def extraer_json_vision(im_bytes, prompt, modo="auditoria"):
+    """Procesamiento IA: 1 pasada (económica) o 3 pasadas (auditoría)."""
     def call(extra=""):
         resp = openai.chat.completions.create(
             model="gpt-4o",
@@ -149,9 +153,17 @@ if cabecera_bytes and manuscrita_bytes:
         with st.spinner("Procesando imágenes..."):
             prompt_cab = '{"Numero de Pagare":"","Ciudad":"","Dia (en letras)":"","Dia (en numero)":"","Mes":"","Año (en letras)":"","Año (en numero)":"","Valor en letras":"","Valor en numeros":""}'
             
-            # 👇 Aquí se agregó “Ciudad de Firma”
-            prompt_man = '{"Nombre del Deudor":"","Cedula":"","Direccion":"","Ciudad":"","Ciudad de Firma":"","Telefono":"","Fecha de Firma":""}'
-            
+            # ✅ CORRECTO: se conserva la firma y se añade ciudad de firma
+            prompt_man = """{
+                "Nombre del Deudor": "",
+                "Cedula": "",
+                "Direccion": "",
+                "Ciudad": "",
+                "Telefono": "",
+                "Fecha de Firma": "",
+                "Ciudad de Firma": ""
+            }"""
+
             cab = extraer_json_vision(cabecera_bytes, prompt_cab, modo=modo_proceso)
             man = extraer_json_vision(manuscrita_bytes, prompt_man, modo=modo_proceso)
             data = {**cab, **man}
