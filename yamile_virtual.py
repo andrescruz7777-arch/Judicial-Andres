@@ -7,25 +7,26 @@ import openai
 # =========================
 # ⚙️ CONFIGURACIÓN INICIAL
 # =========================
-st.set_page_config(page_title="Extractor de Pagarés IA — Modo Dual", layout="wide")
-st.title("✍️ Extractor de Pagarés — COS JudicIA (Modo Dual 🤖 / ⚡)")
+st.set_page_config(page_title="Extractor de Pagarés — COS JudicIA", layout="wide")
+st.title("✍️ Extractor de Pagarés con IA — Modo Dual (Precisión y Trazabilidad)")
 
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 # =========================
-# 🔧 VARIABLES GLOBALES
+# VARIABLES GLOBALES
 # =========================
-CRITICAL_FIELDS = ["Nombre del Deudor", "Cedula", "Valor en letras", "Valor en numeros"]
-
 if "pagares_data" not in st.session_state:
     st.session_state.pagares_data = []
+if "ultimo_registro" not in st.session_state:
+    st.session_state.ultimo_registro = None
 if "procesando" not in st.session_state:
     st.session_state.procesando = False
 
 # =========================
-# 🧩 FUNCIONES DE UTILIDAD
+# FUNCIONES UTILITARIAS
 # =========================
 def mejorar_imagen(im_bytes):
+    """Escala de grises + aumento de resolución."""
     img = Image.open(io.BytesIO(im_bytes)).convert("L")
     img = img.resize((img.width * 2, img.height * 2))
     buf = io.BytesIO()
@@ -33,6 +34,7 @@ def mejorar_imagen(im_bytes):
     return buf.getvalue()
 
 def pdf_a_imagenes(pdf_bytes):
+    """Convierte primera y última página del PDF en imágenes PNG."""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     if len(doc) == 0:
         raise ValueError("PDF vacío o dañado.")
@@ -54,15 +56,18 @@ def limpiar_json(txt):
         return "{}"
 
 def letras_a_int(texto):
+    """Convierte número en letras a entero básico."""
     texto = texto.lower().replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ú","u")
-    partes = texto.split()
-    n = 0
-    unidades = {"uno":1,"dos":2,"tres":3,"cuatro":4,"cinco":5,"seis":6,"siete":7,"ocho":8,"nueve":9}
-    decenas = {"diez":10,"veinte":20,"treinta":30,"cuarenta":40,"cincuenta":50,"sesenta":60,"setenta":70,"ochenta":80,"noventa":90}
-    for p in partes:
-        if p in unidades: n += unidades[p]
-        elif p in decenas: n += decenas[p]
-    return n
+    unidades = {
+        "uno":1,"dos":2,"tres":3,"cuatro":4,"cinco":5,"seis":6,"siete":7,"ocho":8,"nueve":9,
+        "diez":10,"veinte":20,"treinta":30,"cuarenta":40,"cincuenta":50,"sesenta":60,"setenta":70,
+        "ochenta":80,"noventa":90,"cien":100,"mil":1000,"millon":1000000,"millones":1000000
+    }
+    total = 0
+    for p in texto.split():
+        if p in unidades:
+            total += unidades[p]
+    return total
 
 def valores_consistentes(letras, numeros):
     try:
@@ -71,17 +76,14 @@ def valores_consistentes(letras, numeros):
     except:
         return False
 
-# =========================
-# 🧠 FUNCIÓN IA CENTRAL
-# =========================
 def extraer_json_vision(im_bytes, prompt, modo="auditoria"):
-    """Ejecuta 1 o 3 pasadas según el modo."""
+    """Procesamiento IA: 1 pasada (económica) o 3 pasadas (auditoría)."""
     def call(extra=""):
         resp = openai.chat.completions.create(
             model="gpt-4o",
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "Eres perito en lectura de pagarés colombianos. Devuelve SIEMPRE JSON estricto."},
+                {"role": "system", "content": "Eres experto en pagarés colombianos. Devuelve solo JSON estricto."},
                 {"role": "user", "content": prompt + extra},
                 {"role": "user", "content": [
                     {"type": "image_url", "image_url": {
@@ -90,16 +92,16 @@ def extraer_json_vision(im_bytes, prompt, modo="auditoria"):
                     }}
                 ]}
             ],
-            max_tokens=1000,
+            max_tokens=900,
         )
         return json.loads(limpiar_json(resp.choices[0].message.content))
 
     if modo == "economico":
-        return call("\nModo rápido, interpreta directamente el texto visible.")
+        return call("\nModo rápido, interpreta texto visible.")
     else:
-        o1 = call("\nModo: PRECISO.")
-        o2 = call("\nModo: INTERPRETATIVO.")
-        o3 = call("\nModo: VERIFICACIÓN.")
+        o1 = call("\nModo: Preciso.")
+        o2 = call("\nModo: Interpretativo.")
+        o3 = call("\nModo: Verificación.")
         final = {}
         keys = set(o1.keys()) | set(o2.keys()) | set(o3.keys())
         for k in keys:
@@ -113,20 +115,20 @@ def extraer_json_vision(im_bytes, prompt, modo="auditoria"):
         return final
 
 # =========================
-# 📁 INTERFAZ DE CARGA
+# INTERFAZ DE USUARIO
 # =========================
-st.header("1️⃣ Carga del pagaré")
-modo_doc = st.radio("Tipo de documento:", ["📄 PDF", "📸 Imágenes"])
+st.header("1️⃣ Subir pagaré")
+tipo_doc = st.radio("Tipo de archivo:", ["📄 PDF", "📸 Imágenes"])
 modo_proceso = st.radio("Modo de extracción:", ["🟢 Económico (rápido)", "🧠 Auditoría (alta precisión)"])
 modo_proceso = "economico" if "Económico" in modo_proceso else "auditoria"
 
 cabecera_bytes, manuscrita_bytes = None, None
-if modo_doc == "📄 PDF":
-    pdf = st.file_uploader("Sube el pagaré (PDF)", type=["pdf"])
+if tipo_doc == "📄 PDF":
+    pdf = st.file_uploader("Sube el pagaré en PDF", type=["pdf"])
     if pdf:
         try:
-            cab, man, thumbs = pdf_a_imagenes(pdf.read())
-            st.image(thumbs, caption=["Cabecera", "Parte manuscrita"], width=300)
+            cab, man, imgs = pdf_a_imagenes(pdf.read())
+            st.image(imgs, caption=["Cabecera", "Parte manuscrita"], use_container_width=True)
             cabecera_bytes, manuscrita_bytes = mejorar_imagen(cab), mejorar_imagen(man)
         except Exception as e:
             st.error(f"Error al procesar PDF: {e}")
@@ -135,74 +137,73 @@ else:
     man = st.file_uploader("Parte manuscrita", type=["jpg", "jpeg", "png"])
     if cab and man:
         col1, col2 = st.columns(2)
-        col1.image(cab, caption="Cabecera")
-        col2.image(man, caption="Parte manuscrita")
+        col1.image(cab, caption="Cabecera", use_container_width=True)
+        col2.image(man, caption="Parte manuscrita", use_container_width=True)
         cabecera_bytes, manuscrita_bytes = mejorar_imagen(cab.read()), mejorar_imagen(man.read())
 
 # =========================
-# 🤖 PROCESAMIENTO
+# PROCESAR
 # =========================
 if cabecera_bytes and manuscrita_bytes:
     st.divider()
-    st.header("2️⃣ Extracción automática")
+    st.header("2️⃣ Extracción IA y Validación")
 
     if st.button("🚀 Ejecutar IA") and not st.session_state.procesando:
         st.session_state.procesando = True
-        with st.spinner("Procesando pagaré..."):
+        with st.spinner("Procesando imágenes..."):
             prompt_cab = '{"Numero de Pagare":"","Ciudad":"","Dia (en letras)":"","Dia (en numero)":"","Mes":"","Año (en letras)":"","Año (en numero)":"","Valor en letras":"","Valor en numeros":""}'
             prompt_man = '{"Nombre del Deudor":"","Cedula":"","Direccion":"","Ciudad":"","Telefono":"","Fecha de Firma":""}'
             cab = extraer_json_vision(cabecera_bytes, prompt_cab, modo=modo_proceso)
             man = extraer_json_vision(manuscrita_bytes, prompt_man, modo=modo_proceso)
             data = {**cab, **man}
+            st.session_state.ultimo_registro = data
         st.session_state.procesando = False
-
+        st.success("✅ Extracción completada correctamente.")
         st.json(data)
-        st.success("✅ Extracción completada")
-
-        # Validación crítica
-        errores = []
-        if not re.fullmatch(r"\d{6,10}", str(data.get("Cedula",""))):
-            errores.append("Cédula inválida")
-        if not re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]{5,60}", str(data.get("Nombre del Deudor",""))):
-            errores.append("Nombre inválido")
-        if not valores_consistentes(data.get("Valor en letras",""), data.get("Valor en numeros","")):
-            errores.append("Valor letras ≠ números")
-        if errores:
-            st.error("⚠️ Errores críticos: " + " | ".join(errores))
-
-        # Edición manual
-        st.subheader("✏️ Corrección manual y trazabilidad")
-        cambios = []
-        data_edit = {}
-        for campo, valor in data.items():
-            nuevo = st.text_input(campo, str(valor))
-            data_edit[campo] = nuevo
-            if str(nuevo).strip() != str(valor).strip():
-                cambios.append(campo)
-
-        if st.button("💾 Guardar registro"):
-            registro = data_edit.copy()
-            registro["Campos Modificados"] = ", ".join(cambios) if cambios else "Sin cambios"
-            registro["Editado Manualmente"] = "Sí" if cambios else "No"
-            registro["Modo"] = modo_proceso
-            registro["Fecha Registro"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            st.session_state.pagares_data.append(registro)
-            st.success(f"✅ Guardado con éxito. Cambios: {len(cambios)} campo(s).")
 
 # =========================
-# 📊 EXPORTAR
+# CORRECCIÓN Y GUARDADO
+# =========================
+if st.session_state.ultimo_registro:
+    st.divider()
+    st.header("3️⃣ Validación y Corrección Manual")
+
+    data = st.session_state.ultimo_registro
+    data_edit = {}
+    cambios = []
+
+    for campo, valor in data.items():
+        nuevo = st.text_input(campo, str(valor))
+        data_edit[campo] = nuevo
+        if str(nuevo).strip() != str(valor).strip():
+            cambios.append(campo)
+
+    if st.button("💾 Guardar registro"):
+        registro = data_edit.copy()
+        registro["Campos Modificados"] = ", ".join(cambios) if cambios else "Sin cambios"
+        registro["Editado Manualmente"] = "Sí" if cambios else "No"
+        registro["Modo"] = modo_proceso
+        registro["Fecha Registro"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.pagares_data.append(registro)
+        st.success(f"✅ Registro guardado correctamente ({len(cambios)} cambios).")
+
+# =========================
+# EXPORTACIÓN A EXCEL
 # =========================
 if st.session_state.pagares_data:
     st.divider()
-    st.header("3️⃣ Exportar resultados")
+    st.header("4️⃣ Exportar resultados a Excel")
+
     df = pd.DataFrame(st.session_state.pagares_data)
     st.dataframe(df, use_container_width=True)
-    buf = io.BytesIO()
-    df.to_excel(buf, index=False, engine="openpyxl")
-    buf.seek(0)
+
+    excel_io = io.BytesIO()
+    df.to_excel(excel_io, index=False, engine="openpyxl")
+    excel_io.seek(0)
+
     st.download_button(
-        "⬇️ Descargar Excel",
-        buf,
-        "pagares_extraidos.xlsx",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "⬇️ Descargar Excel con resultados",
+        excel_io,
+        file_name="pagares_extraidos.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
