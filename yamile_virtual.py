@@ -1,6 +1,6 @@
 # ============================================
-# 📄 Extractor de Pagarés — COS JudicIA (UI Moderno)
-# Estilo: Dashboard tipo CrmX Admin (sidebar oscuro + drawer derecho)
+# 📄 Extractor de Pagarés — COS JudicIA (UI Moderno Mejorado)
+# Estilo: Dashboard tipo CrmX Admin con editor inferior
 # ============================================
 
 import streamlit as st
@@ -35,7 +35,6 @@ st.markdown("""
   --success:#2ECC71;
 }
 
-/* ===== App Layout ===== */
 html, body, .stApp { background: var(--bg) !important; }
 * { font-family: 'Poppins', sans-serif; }
 
@@ -45,7 +44,6 @@ html, body, .stApp { background: var(--bg) !important; }
 }
 [data-testid="stSidebar"] * { color: #E9EEF6 !important; }
 
-/* Sidebar */
 .sidebar-logo {
   display:flex; align-items:center; gap:.6rem; margin: .5rem 0 1rem 0;
 }
@@ -60,7 +58,6 @@ html, body, .stApp { background: var(--bg) !important; }
   font-size:.9rem;
 }
 
-/* Top header bar */
 .app-header {
   position: sticky; top: 0; z-index: 50;
   background: #ffffff; border-radius: 16px; padding: .9rem 1.2rem; 
@@ -76,7 +73,6 @@ html, body, .stApp { background: var(--bg) !important; }
   font-size:.95rem; color:var(--text);
 }
 
-/* Cards */
 .card{
   background: var(--card); border-radius: 16px; padding: 1rem 1.1rem;
   box-shadow: 0 8px 24px rgba(31,41,64,0.06);
@@ -87,12 +83,7 @@ html, body, .stApp { background: var(--bg) !important; }
 }
 .metric .label{ color: var(--muted); font-size:.85rem; }
 .metric .value{ font-size:1.6rem; font-weight:700; color:var(--text); }
-.metric .chip{
-  font-size:.78rem; padding:.2rem .55rem; border-radius:999px;
-  background:#E8F2FF; color: var(--primary); border:1px solid #D6E6FF;
-}
 
-/* Buttons */
 .stButton>button{
   background: var(--primary) !important; color:#fff !important; border:none;
   padding:.6rem 1rem; border-radius: 12px; font-weight:600;
@@ -101,62 +92,56 @@ html, body, .stApp { background: var(--bg) !important; }
 .stButton>button:hover{ background: var(--primary-700) !important; transform: translateY(-1px); }
 .btn-sec>button{ background: #EEF2F7 !important; color:#334155 !important; }
 
-/* Dataframe and tables */
 .stDataFrame{
   border-radius: 12px; overflow: hidden; border:1px solid #EEF1F6;
   box-shadow: 0 8px 24px rgba(31,41,64,0.05);
 }
 
-/* Image previews */
 .preview-wrap img{ border-radius: 12px; border:1px solid #EEF1F6; }
 
-/* Drawer right */
-.drawer-mask{
-  position: fixed; inset:0; background: rgba(15,23,42,0.35); 
-  backdrop-filter: blur(1.5px); z-index: 1000;
-}
-.drawer{
-  position: fixed; top:0; right:0; height:100vh; width: 420px; max-width: 92vw;
-  background: #ffffff; box-shadow: -12px 0 28px rgba(31,41,64,.15);
-  border-left:1px solid #EEF1F6; z-index: 1001; padding: 1rem 1.2rem;
-  display:flex; flex-direction:column; gap:.6rem;
-  animation: slideIn .18s ease-out;
-}
-@keyframes slideIn{ from{ transform: translateX(20px); opacity:0;} to{ transform: translateX(0); opacity:1; } }
-.drawer h3{ margin:.2rem 0 .2rem 0; }
-.drawer .footer{
-  margin-top:auto; display:flex; gap:.6rem; justify-content:flex-end; padding-top:.6rem;
-  border-top:1px dashed #EAEAEA;
-}
-
-/* Section titles */
-.section-title{ font-weight:700; font-size:1.05rem; color:#0F172A; margin-bottom:.4rem; }
-
-/* Small badges */
-.badge{
-  display:inline-block; padding:.2rem .5rem; border-radius:8px; font-size:.75rem;
-  border:1px solid #E6E9F0; color:#475569; background:#F8FAFC;
-}
-
-/* Divider prettier */
 hr{ border: none; border-top: 1px dashed #E6E9F0; margin: 1rem 0; }
 
-/* ==== Contraste de texto ==== */
 label, .stRadio label, .stFileUploader label, .stTextInput label,
 .stMarkdown p, .stMarkdown span, .stCaption, .stRadio div, .stSelectbox label,
-.stCheckbox label, .stTextInput input, .stTextInput div, .stMarkdown li {
+.stCheckbox label, .stTextInput div, .stMarkdown li {
     color: #1a1a1a !important;
     font-weight: 500 !important;
 }
-.stRadio > div[role='radiogroup'] label, 
-.stRadio > div[role='radiogroup'] div {
-    color: #1a1a1a !important;
+
+/* Inputs del editor: fondo oscuro + texto blanco */
+.stTextInput > div > div > input {
+    background-color: #1F1F1F !important;
+    color: #FFFFFF !important;
+    border-radius: 8px;
+    border: 1px solid #333 !important;
 }
-.stFileUploader > div, .stFileUploader label, .stFileUploader span {
-    color: #1a1a1a !important;
+.stTextInput > div > div > input:focus {
+    border: 1px solid #2F80ED !important;
+    box-shadow: 0 0 0 1px #2F80ED !important;
 }
-.css-10trblm, .stSubheader, .stMarkdown h3, .stMarkdown h4 {
-    color: #0F172A !important;
+
+/* Uploader legible */
+.stFileUploader, .stFileUploader div, .stFileUploader label, .stFileUploader span {
+    color: #1A1A1A !important;
+}
+
+/* Mensaje IA */
+.ia-loader {
+    text-align: center;
+    font-weight: 600;
+    font-size: 1.1rem;
+    padding: 1rem;
+    border-radius: 12px;
+    background: #E8F2FF;
+    color: #1F2940;
+    border: 1px solid #BFD6FF;
+    margin-top: 1rem;
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0% {opacity: 1;}
+  50% {opacity: 0.5;}
+  100% {opacity: 1;}
 }
 </style>
 """, unsafe_allow_html=True)
@@ -233,7 +218,7 @@ with st.sidebar:
     st.markdown('<div class="sidebar-logo"><span class="logo-dot"></span><span><b>COS JudicIA</b><br><span style="font-size:.8rem; opacity:.85">Extractor de Pagarés</span></span></div>', unsafe_allow_html=True)
     st.markdown('<div class="sidebar-user">👤 <b>Operador</b><span style="opacity:.7"> | COS</span></div>', unsafe_allow_html=True)
     menu = st.radio("Menú", ["📄 Subir pagarés", "🧠 Extracción IA", "✏️ Corrección manual", "📊 Histórico / Excel"], label_visibility="collapsed")
-    st.markdown('<span class="badge">v1.0 UI Moderno</span>', unsafe_allow_html=True)
+    st.markdown('<span class="badge">v1.1 UI Mejorada</span>', unsafe_allow_html=True)
 
 # =========================
 # 🔝 HEADER
@@ -284,7 +269,7 @@ if menu == "📄 Subir pagarés":
                 cab, man, imgs = pdf_a_imagenes(pdf.read())
                 cabecera_bytes, manuscrita_bytes = mejorar_imagen(cab), mejorar_imagen(man)
                 st.session_state["cab"], st.session_state["man"], st.session_state["imgs"] = cabecera_bytes, manuscrita_bytes, imgs
-                st.success("✅ PDF cargado correctamente.")
+                st.success(f"✅ PDF '{pdf.name}' cargado correctamente.")
         else:
             cab = st.file_uploader("Cabecera", type=["jpg", "jpeg", "png"])
             man = st.file_uploader("Parte manuscrita", type=["jpg", "jpeg", "png"])
@@ -307,6 +292,7 @@ if menu == "📄 Subir pagarés":
 
     if st.session_state.get("cab") and st.session_state.get("man"):
         if st.button("🚀 Analizar con IA"):
+            st.markdown('<div class="ia-loader">🧠 Estamos trabajando en ello... analizando tu pagaré, por favor espera unos segundos.</div>', unsafe_allow_html=True)
             st.session_state.procesando = True
             with st.spinner("Procesando imágenes con IA..."):
                 prompt_cab = """
@@ -347,7 +333,7 @@ if menu == "🧠 Extracción IA":
         df_view = pd.DataFrame([st.session_state.ultimo_registro]).T.reset_index()
         df_view.columns = ["Campo", "Valor"]
         st.dataframe(df_view, use_container_width=True, height=420)
-        if st.button("✏️ Editar registro"):
+        if st.button("✏️ Abrir editor de campos"):
             st.session_state.drawer_payload = st.session_state.ultimo_registro.copy()
             st.session_state.drawer_open = True
     else:
@@ -361,7 +347,7 @@ if menu == "✏️ Corrección manual":
         df_view = pd.DataFrame([st.session_state.ultimo_registro]).T.reset_index()
         df_view.columns = ["Campo", "Valor"]
         st.dataframe(df_view, use_container_width=True)
-        if st.button("✏️ Abrir editor lateral"):
+        if st.button("✏️ Abrir editor de campos"):
             st.session_state.drawer_payload = st.session_state.ultimo_registro.copy()
             st.session_state.drawer_open = True
     else:
@@ -380,6 +366,7 @@ if menu == "📊 Histórico / Excel":
         st.download_button("⬇️ Descargar Excel", data=excel_io, file_name="resultados_pagares.xlsx")
     else:
         st.info("Aún no hay registros guardados.")
+
 # =========================
 # 🧾 FORMULARIO INFERIOR DE EDICIÓN
 # =========================
@@ -392,7 +379,6 @@ def render_editor():
     cols = st.columns(2)
     campos = list(st.session_state.drawer_payload.items())
 
-    # mostrar en dos columnas para hacerlo más estético
     mitad = len(campos)//2 or 1
     with cols[0]:
         for campo, valor in campos[:mitad]:
@@ -402,7 +388,6 @@ def render_editor():
             updated[campo] = st.text_input(campo, str(valor))
 
     st.markdown('</div>', unsafe_allow_html=True)
-
     col1, col2 = st.columns([1,1])
     with col1:
         cancel = st.button("❌ Cancelar edición", use_container_width=True)
@@ -417,17 +402,13 @@ def render_editor():
         orig = st.session_state.ultimo_registro or {}
         cambios = [k for k in updated if str(updated[k]).strip() != str(orig.get(k, "")).strip()]
         st.session_state.ultimo_registro = updated.copy()
-
         registro = updated.copy()
         registro["Campos Modificados"] = ", ".join(cambios) if cambios else "Sin cambios"
         registro["Editado Manualmente"] = "Sí" if cambios else "No"
         registro["Fecha Registro"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         st.session_state.pagares_data.append(registro)
-
         st.session_state.drawer_open = False
         st.success(f"✅ Guardado correctamente ({len(cambios)} cambios).")
 
-# renderizado del editor si está activo
 if st.session_state.drawer_open:
     render_editor()
-
