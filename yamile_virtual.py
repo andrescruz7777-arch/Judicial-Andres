@@ -236,7 +236,6 @@ if st.session_state.ultimo_registro:
             st.session_state.pagares_data.append(registro)
             st.success(f"✅ Registro guardado correctamente ({len(cambios)} cambios).")
 
-    # 🧹 Botón para limpiar toda la tabla
     with col_limpiar:
         if st.button("🧹 Limpiar tabla"):
             st.session_state.pagares_data = []
@@ -259,3 +258,6 @@ if st.session_state.pagares_data:
 
     st.download_button(
         "⬇️ Descargar Excel con resultados",
+        data=excel_io,
+        file_name="resultados_pagares.xlsx"
+    )
