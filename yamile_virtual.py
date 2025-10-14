@@ -92,7 +92,7 @@ def extraer_json_vision(im_bytes, prompt, modo="auditoria"):
                     }}
                 ]}
             ],
-            max_tokens=900,
+            max_tokens=1000,
         )
         return json.loads(limpiar_json(resp.choices[0].message.content))
 
@@ -142,7 +142,7 @@ else:
         cabecera_bytes, manuscrita_bytes = mejorar_imagen(cab.read()), mejorar_imagen(man.read())
 
 # =========================
-# PROCESAR
+# PROCESAR IA
 # =========================
 if cabecera_bytes and manuscrita_bytes:
     st.divider()
@@ -151,18 +151,55 @@ if cabecera_bytes and manuscrita_bytes:
     if st.button("🚀 Ejecutar IA") and not st.session_state.procesando:
         st.session_state.procesando = True
         with st.spinner("Procesando imágenes..."):
-            prompt_cab = '{"Numero de Pagare":"","Ciudad":"","Dia (en letras)":"","Dia (en numero)":"","Mes":"","Año (en letras)":"","Año (en numero)":"","Valor en letras":"","Valor en numeros":""}'
-            
-            # ✅ CORRECTO: se conserva la firma y se añade ciudad de firma
-            prompt_man = """{
-                "Nombre del Deudor": "",
-                "Cedula": "",
-                "Direccion": "",
-                "Ciudad": "",
-                "Telefono": "",
-                "Fecha de Firma": "",
-                "Ciudad de Firma": ""
-            }"""
+            prompt_cab = """
+Extrae los siguientes datos del pagaré (parte superior):
+- Número de pagaré (si aparece)
+- Ciudad
+- Día (en letras)
+- Día (en número)
+- Mes
+- Año (en letras)
+- Año (en número)
+- Valor en letras
+- Valor en números
+
+Devuélvelo en formato JSON con esas claves exactas:
+{
+  "Numero de Pagare": "",
+  "Ciudad": "",
+  "Dia (en letras)": "",
+  "Dia (en numero)": "",
+  "Mes": "",
+  "Año (en letras)": "",
+  "Año (en numero)": "",
+  "Valor en letras": "",
+  "Valor en numeros": ""
+}
+"""
+
+            # ✅ PROMPT con Ciudad de Firma mejorado
+            prompt_man = """
+Extrae los siguientes datos manuscritos del pagaré:
+
+- "Nombre del Deudor": el nombre completo de quien firma el pagaré.
+- "Cedula": el número de identificación del deudor.
+- "Direccion": dirección completa (calle, carrera, número, barrio si aparece).
+- "Ciudad": la ciudad asociada a la dirección anterior (donde reside el deudor).
+- "Telefono": número de contacto manuscrito.
+- "Fecha de Firma": la fecha completa en que se firmó el pagaré.
+- "Ciudad de Firma": la ciudad donde se firmó el pagaré, que normalmente aparece junto a la fecha o antes del nombre del deudor (por ejemplo: “Montería, 2 de marzo de 2023” → extraer “Montería”).
+
+Devuélvelo estrictamente en formato JSON con esas mismas claves exactas:
+{
+  "Nombre del Deudor": "",
+  "Cedula": "",
+  "Direccion": "",
+  "Ciudad": "",
+  "Telefono": "",
+  "Fecha de Firma": "",
+  "Ciudad de Firma": ""
+}
+"""
 
             cab = extraer_json_vision(cabecera_bytes, prompt_cab, modo=modo_proceso)
             man = extraer_json_vision(manuscrita_bytes, prompt_man, modo=modo_proceso)
