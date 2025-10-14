@@ -1,6 +1,6 @@
 # ============================================
 # 📄 Extractor de Pagarés — COS JudicIA (UI Moderno Mejorado)
-# Estilo: Dashboard tipo CrmX Admin con editor inferior
+# Estilo CrmX Admin con flujo guiado
 # ============================================
 
 import streamlit as st
@@ -38,6 +38,7 @@ st.markdown("""
 html, body, .stApp { background: var(--bg) !important; }
 * { font-family: 'Poppins', sans-serif; }
 
+/* SIDEBAR */
 [data-testid="stSidebar"] {
     background: var(--sidebar) !important;
     border-right: 0;
@@ -58,6 +59,7 @@ html, body, .stApp { background: var(--bg) !important; }
   font-size:.9rem;
 }
 
+/* HEADER */
 .app-header {
   position: sticky; top: 0; z-index: 50;
   background: #ffffff; border-radius: 16px; padding: .9rem 1.2rem; 
@@ -73,6 +75,7 @@ html, body, .stApp { background: var(--bg) !important; }
   font-size:.95rem; color:var(--text);
 }
 
+/* TARJETAS */
 .card{
   background: var(--card); border-radius: 16px; padding: 1rem 1.1rem;
   box-shadow: 0 8px 24px rgba(31,41,64,0.06);
@@ -84,6 +87,7 @@ html, body, .stApp { background: var(--bg) !important; }
 .metric .label{ color: var(--muted); font-size:.85rem; }
 .metric .value{ font-size:1.6rem; font-weight:700; color:var(--text); }
 
+/* BOTONES */
 .stButton>button{
   background: var(--primary) !important; color:#fff !important; border:none;
   padding:.6rem 1rem; border-radius: 12px; font-weight:600;
@@ -92,23 +96,13 @@ html, body, .stApp { background: var(--bg) !important; }
 .stButton>button:hover{ background: var(--primary-700) !important; transform: translateY(-1px); }
 .btn-sec>button{ background: #EEF2F7 !important; color:#334155 !important; }
 
+/* TABLAS */
 .stDataFrame{
   border-radius: 12px; overflow: hidden; border:1px solid #EEF1F6;
   box-shadow: 0 8px 24px rgba(31,41,64,0.05);
 }
 
-.preview-wrap img{ border-radius: 12px; border:1px solid #EEF1F6; }
-
-hr{ border: none; border-top: 1px dashed #E6E9F0; margin: 1rem 0; }
-
-label, .stRadio label, .stFileUploader label, .stTextInput label,
-.stMarkdown p, .stMarkdown span, .stCaption, .stRadio div, .stSelectbox label,
-.stCheckbox label, .stTextInput div, .stMarkdown li {
-    color: #1a1a1a !important;
-    font-weight: 500 !important;
-}
-
-/* Inputs del editor: fondo oscuro + texto blanco */
+/* INPUTS EDITOR */
 .stTextInput > div > div > input {
     background-color: #1F1F1F !important;
     color: #FFFFFF !important;
@@ -120,12 +114,26 @@ label, .stRadio label, .stFileUploader label, .stTextInput label,
     box-shadow: 0 0 0 1px #2F80ED !important;
 }
 
-/* Uploader legible */
+/* UPLOADER VISIBLE */
 .stFileUploader, .stFileUploader div, .stFileUploader label, .stFileUploader span {
-    color: #1A1A1A !important;
+    color: #FFFFFF !important;
+}
+.stFileUploader > div:first-child {
+    background-color: #2F2F2F !important;
+    border-radius: 12px !important;
+    border: 1px solid #3A3A3A !important;
+}
+.stFileUploader button {
+    background-color: #2F80ED !important;
+    color: #FFFFFF !important;
+    border-radius: 10px !important;
+    border: none !important;
+}
+.stFileUploader button:hover {
+    background-color: #1B5EC8 !important;
 }
 
-/* Mensaje IA */
+/* MENSAJES IA */
 .ia-loader {
     text-align: center;
     font-weight: 600;
@@ -142,6 +150,23 @@ label, .stRadio label, .stFileUploader label, .stTextInput label,
   0% {opacity: 1;}
   50% {opacity: 0.5;}
   100% {opacity: 1;}
+}
+
+/* BANNER FINAL */
+.success-banner {
+    background: #D1FAE5;
+    color: #065F46;
+    padding: 1.2rem;
+    border-radius: 12px;
+    font-weight: 600;
+    text-align: center;
+    margin-top: 1rem;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.05);
+    animation: fadeIn 1s ease-in-out;
+}
+@keyframes fadeIn {
+    from {opacity:0; transform:translateY(10px);}
+    to {opacity:1; transform:translateY(0);}
 }
 </style>
 """, unsafe_allow_html=True)
@@ -218,7 +243,7 @@ with st.sidebar:
     st.markdown('<div class="sidebar-logo"><span class="logo-dot"></span><span><b>COS JudicIA</b><br><span style="font-size:.8rem; opacity:.85">Extractor de Pagarés</span></span></div>', unsafe_allow_html=True)
     st.markdown('<div class="sidebar-user">👤 <b>Operador</b><span style="opacity:.7"> | COS</span></div>', unsafe_allow_html=True)
     menu = st.radio("Menú", ["📄 Subir pagarés", "🧠 Extracción IA", "✏️ Corrección manual", "📊 Histórico / Excel"], label_visibility="collapsed")
-    st.markdown('<span class="badge">v1.1 UI Mejorada</span>', unsafe_allow_html=True)
+    st.markdown('<span class="badge">v1.2 UI Avanzada</span>', unsafe_allow_html=True)
 
 # =========================
 # 🔝 HEADER
@@ -232,23 +257,6 @@ st.markdown("""
   <div class="badge">Perfil</div>
 </div>
 """, unsafe_allow_html=True)
-
-# =========================
-# 📊 TARJETAS
-# =========================
-total_procesados = len(st.session_state.pagares_data)
-total_editados = sum(1 for r in st.session_state.pagares_data if "Sí" in str(r.get("Editado Manualmente", "")))
-precision_aprox = 97
-tiempo_prom = 1.2
-cols = st.columns(4)
-for i, (t, v) in enumerate({
-    "Pagarés procesados": total_procesados,
-    "Campos corregidos": total_editados,
-    "Extracciones exitosas": f"{precision_aprox}%",
-    "Tiempo promedio": f"{tiempo_prom} min"
-}.items()):
-    with cols[i]:
-        st.markdown(f"""<div class="card metric"><div><div class="label">{t}</div><div class="value">{v}</div></div></div>""", unsafe_allow_html=True)
 
 # =========================
 # 📁 SUBIR PAGARÉS
@@ -270,7 +278,7 @@ if menu == "📄 Subir pagarés":
                 cabecera_bytes, manuscrita_bytes = mejorar_imagen(cab), mejorar_imagen(man)
                 st.session_state["cab"], st.session_state["man"], st.session_state["imgs"] = cabecera_bytes, manuscrita_bytes, imgs
                 st.success(f"✅ PDF '{pdf.name}' cargado correctamente.")
-        else:
+                      else:
             cab = st.file_uploader("Cabecera", type=["jpg", "jpeg", "png"])
             man = st.file_uploader("Parte manuscrita", type=["jpg", "jpeg", "png"])
             if cab and man:
@@ -309,21 +317,37 @@ Extrae los siguientes datos del pagaré:
 Devuélvelo en JSON.
 """
                 prompt_man = """
-Extrae del pagaré manuscrito:
-- Nombre del Deudor
-- Cedula
-- Direccion
-- Ciudad
-- Telefono
-- Fecha de Firma
-- Ciudad de Firma
-Devuélvelo en JSON.
+Extrae los siguientes datos manuscritos del pagaré, prestando atención a cualquier texto al final o junto a la firma:
+- "Nombre del Deudor": nombre completo de quien firma el pagaré.
+- "Cedula": número de identificación.
+- "Direccion": dirección completa (calle, carrera, número, barrio si aparece).
+- "Ciudad": ciudad asociada a la dirección (residencia del deudor).
+- "Telefono": número de contacto manuscrito.
+- "Fecha de Firma": fecha completa en que se firmó el pagaré.
+- "Ciudad de Firma": ciudad que acompaña la fecha de firma o que esté escrita antes del nombre del deudor (por ejemplo: “Montería, 2 de marzo de 2023” → extraer “Montería”).
+
+Devuélvelo estrictamente en formato JSON con las claves:
+{
+  "Nombre del Deudor": "",
+  "Cedula": "",
+  "Direccion": "",
+  "Ciudad": "",
+  "Telefono": "",
+  "Fecha de Firma": "",
+  "Ciudad de Firma": ""
+}
 """
                 cab = extraer_json_vision(st.session_state["cab"], prompt_cab, modo)
                 man = extraer_json_vision(st.session_state["man"], prompt_man, modo)
                 st.session_state.ultimo_registro = {**cab, **man}
             st.session_state.procesando = False
-            st.success("✅ Extracción completada correctamente.")
+
+            st.markdown("""
+            <div class='success-banner'>
+                ✅ Extracción completada correctamente.<br>
+                <small>Haz clic en <b>🧠 Extracción IA</b> en el menú lateral para continuar al siguiente paso.</small>
+            </div>
+            """, unsafe_allow_html=True)
 
 # =========================
 # 🧠 EXTRACCIÓN IA
@@ -397,7 +421,6 @@ def render_editor():
     if cancel:
         st.session_state.drawer_open = False
         st.info("Edición cancelada.")
-
     if save:
         orig = st.session_state.ultimo_registro or {}
         cambios = [k for k in updated if str(updated[k]).strip() != str(orig.get(k, "")).strip()]
@@ -412,3 +435,4 @@ def render_editor():
 
 if st.session_state.drawer_open:
     render_editor()
+
