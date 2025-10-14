@@ -380,53 +380,54 @@ if menu == "📊 Histórico / Excel":
         st.download_button("⬇️ Descargar Excel", data=excel_io, file_name="resultados_pagares.xlsx")
     else:
         st.info("Aún no hay registros guardados.")
-
 # =========================
-# 🪟 DRAWER LATERAL (versión corregida)
+# 🧾 FORMULARIO INFERIOR DE EDICIÓN
 # =========================
-def render_drawer():
-    drawer_html = """
-    <div class="drawer-mask"></div>
-    <div class="drawer">
-      <h3>✏️ Editar campos del pagaré</h3>
-      <div id="drawer-form"></div>
-    </div>
-    """
-    st.markdown(drawer_html, unsafe_allow_html=True)
+def render_editor():
+    st.markdown('<hr>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">✏️ Editar campos del pagaré</div>', unsafe_allow_html=True)
+    st.markdown('<div class="card">', unsafe_allow_html=True)
 
-    # Contenedor Streamlit (para inputs)
-    form_placeholder = st.empty()
-    with form_placeholder.container():
-        updated = {}
-        for campo, valor in st.session_state.drawer_payload.items():
+    updated = {}
+    cols = st.columns(2)
+    campos = list(st.session_state.drawer_payload.items())
+
+    # mostrar en dos columnas para hacerlo más estético
+    mitad = len(campos)//2 or 1
+    with cols[0]:
+        for campo, valor in campos[:mitad]:
+            updated[campo] = st.text_input(campo, str(valor))
+    with cols[1]:
+        for campo, valor in campos[mitad:]:
             updated[campo] = st.text_input(campo, str(valor))
 
-        col1, col2 = st.columns(2)
-        cancel = col1.button("❌ Cancelar", key="drawer_cancel")
-        save = col2.button("💾 Guardar cambios", key="drawer_save")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-        if cancel:
-            st.session_state.drawer_open = False
+    col1, col2 = st.columns([1,1])
+    with col1:
+        cancel = st.button("❌ Cancelar edición", use_container_width=True)
+    with col2:
+        save = st.button("💾 Guardar cambios", use_container_width=True)
 
-        if save:
-            orig = st.session_state.ultimo_registro or {}
-            cambios = [k for k in updated if str(updated[k]).strip() != str(orig.get(k, "")).strip()]
-            st.session_state.ultimo_registro = updated.copy()
-            registro = updated.copy()
-            registro["Campos Modificados"] = ", ".join(cambios) if cambios else "Sin cambios"
-            registro["Editado Manualmente"] = "Sí" if cambios else "No"
-            registro["Fecha Registro"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            st.session_state.pagares_data.append(registro)
-            st.session_state.drawer_open = False
-            st.success(f"✅ Guardado ({len(cambios)} cambios).")
+    if cancel:
+        st.session_state.drawer_open = False
+        st.info("Edición cancelada.")
 
+    if save:
+        orig = st.session_state.ultimo_registro or {}
+        cambios = [k for k in updated if str(updated[k]).strip() != str(orig.get(k, "")).strip()]
+        st.session_state.ultimo_registro = updated.copy()
+
+        registro = updated.copy()
+        registro["Campos Modificados"] = ", ".join(cambios) if cambios else "Sin cambios"
+        registro["Editado Manualmente"] = "Sí" if cambios else "No"
+        registro["Fecha Registro"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.pagares_data.append(registro)
+
+        st.session_state.drawer_open = False
+        st.success(f"✅ Guardado correctamente ({len(cambios)} cambios).")
+
+# renderizado del editor si está activo
 if st.session_state.drawer_open:
-    # Renderiza el drawer arriba del resto del contenido
-    st.markdown(
-        "<style>section.main > div {filter: blur(1px);} </style>",
-        unsafe_allow_html=True
-    )
-    render_drawer()
+    render_editor()
 
-if st.session_state.drawer_open:
-    render_drawer()
