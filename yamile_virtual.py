@@ -1,385 +1,207 @@
 import streamlit as st
 import pandas as pd
 from PIL import Image
-import io, base64, json, re, datetime
-import fitz  # PyMuPDF
+import io, base64, json, re, datetime, fitz
 import openai
 
 # =========================
-# Config
+# ⚙️ CONFIGURACIÓN INICIAL
 # =========================
-st.set_page_config(page_title="Extractor de Pagarés — Alta Precisión", layout="wide")
-st.title("✍️ Extractor de Pagarés — Alta Precisión (Nombre / Cédula / Valor blindados)")
+st.set_page_config(page_title="Extractor de Pagarés IA — Modo Dual", layout="wide")
+st.title("✍️ Extractor de Pagarés — COS JudicIA (Modo Dual 🤖 / ⚡)")
 
 openai.api_key = st.secrets["OPENAI_API_KEY"]
-CRITICAL_FIELDS = ["Nombre del Deudor", "Cedula", "Valor en letras", "Valor en numeros"]
 
 # =========================
-# Utilidades: imagen
+# 🔧 VARIABLES GLOBALES
 # =========================
-def mejorar_imagen(im_bytes: bytes) -> bytes:
+CRITICAL_FIELDS = ["Nombre del Deudor", "Cedula", "Valor en letras", "Valor en numeros"]
+
+if "pagares_data" not in st.session_state:
+    st.session_state.pagares_data = []
+if "procesando" not in st.session_state:
+    st.session_state.procesando = False
+
+# =========================
+# 🧩 FUNCIONES DE UTILIDAD
+# =========================
+def mejorar_imagen(im_bytes):
     img = Image.open(io.BytesIO(im_bytes)).convert("L")
     img = img.resize((img.width * 2, img.height * 2))
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
 
-def pdf_primera_y_ultima_a_png(pdf_bytes: bytes):
+def pdf_a_imagenes(pdf_bytes):
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     if len(doc) == 0:
-        raise ValueError("PDF vacío o dañado")
-    pages = [0, len(doc) - 1]
-    pil_imgs = []
+        raise ValueError("PDF vacío o dañado.")
+    pages = [doc.load_page(0), doc.load_page(len(doc)-1)]
+    imgs = []
     for p in pages:
-        pix = doc.load_page(p).get_pixmap(dpi=200)
-        pil_imgs.append(Image.open(io.BytesIO(pix.tobytes("png"))))
-    b1, b2 = io.BytesIO(), io.BytesIO()
-    pil_imgs[0].save(b1, format="PNG")
-    pil_imgs[1].save(b2, format="PNG")
-    return b1.getvalue(), b2.getvalue(), pil_imgs
+        pix = p.get_pixmap(dpi=200)
+        imgs.append(Image.open(io.BytesIO(pix.tobytes("png"))))
+    cab, man = io.BytesIO(), io.BytesIO()
+    imgs[0].save(cab, format="PNG")
+    imgs[1].save(man, format="PNG")
+    return cab.getvalue(), man.getvalue(), imgs
 
-# =========================
-# Spanish number parser (letras -> int) y verificador (bidireccional)
-# =========================
-UNIDADES = {
-    "cero":0,"uno":1,"una":1,"dos":2,"tres":3,"cuatro":4,"cinco":5,"seis":6,"siete":7,"ocho":8,"nueve":9,
-    "diez":10,"once":11,"doce":12,"trece":13,"catorce":14,"quince":15,"dieciseis":16,"dieciséis":16,
-    "diecisiete":17,"dieciocho":18,"diecinueve":19,"veinte":20,"veintiuno":21,"veintidos":22,"veintidós":22,
-    "veintitrés":23,"veintitres":23,"veinticuatro":24,"veinticinco":25,"veintiseis":26,"veintiséis":26,
-    "veintisiete":27,"veintiocho":28,"veintinueve":29
-}
-DECENAS = {"treinta":30,"cuarenta":40,"cincuenta":50,"sesenta":60,"setenta":70,"ochenta":80,"noventa":90}
-CENTENAS = {
-    "cien":100,"ciento":100,"doscientos":200,"trescientos":300,"cuatrocientos":400,
-    "quinientos":500,"seiscientos":600,"setecientos":700,"ochocientos":800,"novecientos":900
-}
-
-def normaliza_pal(p):
-    return p.lower().replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ú","u")
-
-def letras_a_int(texto: str) -> int:
-    t = normaliza_pal(texto)
-    t = re.sub(r"[^a-z\s]"," ", t)
-    parts = [p for p in t.split() if p not in {"de","y","con"}]
-    total = 0
-    tramo = 0
-    i = 0
-    while i < len(parts):
-        w = parts[i]
-        if w in UNIDADES:
-            tramo += UNIDADES[w]
-        elif w in DECENAS:
-            val = DECENAS[w]
-            if i+1 < len(parts) and parts[i+1] in UNIDADES:
-                tramo += val + UNIDADES[parts[i+1]]; i += 1
-            else:
-                tramo += val
-        elif w in CENTENAS:
-            tramo += CENTENAS[w]
-        elif w == "mil":
-            if tramo == 0: tramo = 1
-            total += tramo * 1000; tramo = 0
-        elif w in {"millon","millones"}:
-            if tramo == 0: tramo = 1
-            total += tramo * 1_000_000; tramo = 0
-        elif w in {"milmillon","milmillones","milesdemillones","milmillardo","milmillardos"}:
-            if tramo == 0: tramo = 1
-            total += tramo * 1_000_000_000; tramo = 0
-        i += 1
-    total += tramo
-    return total
-
-def numeros_a_letras(n: int) -> str:
-    if n == 0: return "cero"
-    def _sub(n):
-        res = []
-        if n >= 100:
-            for k in [900,800,700,600,500,400,300,200,100]:
-                for palabra,valor in CENTENAS.items():
-                    if valor==k and n>=k:
-                        if k==100 and n%100!=0 and palabra=="cien":
-                            res.append("ciento")
-                        else:
-                            res.append(palabra)
-                        n -= k; break
-        if n>=30:
-            for d,valor in DECENAS.items():
-                if n>=valor:
-                    res.append(d); n-=valor; break
-            if n>0: res.append("y")
-        if 0<n<30:
-            for u,valor in UNIDADES.items():
-                if valor==n:
-                    res.append(u); n=0; break
-        return " ".join(res)
-    partes = []
-    for bloque,valpal in [(1_000_000_000,"mil millones"),(1_000_000,"millones"),(1000,"mil")]:
-        if n>=bloque:
-            cuantas = n//bloque; n%=bloque
-            if bloque==1_000_000 and cuantas==1: partes.append("un millon")
-            else: partes.append(_sub(cuantas)+" "+valpal)
-    if n>0: partes.append(_sub(n))
-    return " ".join([p for p in partes if p]).replace("  "," ").strip()
-
-def valores_consistentes(valor_letras: str, valor_numeros: str|int) -> bool:
+def limpiar_json(txt):
     try:
-        n_str = re.sub(r"[^\d]", "", str(valor_numeros))
-        if not n_str: return False
-        n = int(n_str)
-        parsed = letras_a_int(valor_letras)
-        return n == parsed
+        i0, i1 = txt.index("{"), txt.rindex("}") + 1
+        return txt[i0:i1]
+    except:
+        return "{}"
+
+def letras_a_int(texto):
+    texto = texto.lower().replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ú","u")
+    partes = texto.split()
+    n = 0
+    unidades = {"uno":1,"dos":2,"tres":3,"cuatro":4,"cinco":5,"seis":6,"siete":7,"ocho":8,"nueve":9}
+    decenas = {"diez":10,"veinte":20,"treinta":30,"cuarenta":40,"cincuenta":50,"sesenta":60,"setenta":70,"ochenta":80,"noventa":90}
+    for p in partes:
+        if p in unidades: n += unidades[p]
+        elif p in decenas: n += decenas[p]
+    return n
+
+def valores_consistentes(letras, numeros):
+    try:
+        n = int(re.sub(r"[^\d]", "", str(numeros)))
+        return n == letras_a_int(letras)
     except:
         return False
 
 # =========================
-# IA: extracción (3 pasadas, JSON forzado)
+# 🧠 FUNCIÓN IA CENTRAL
 # =========================
-def limpiar_json_bloque(texto: str) -> str:
-    try:
-        i0 = texto.index("{"); i1 = texto.rindex("}")+1
-        return texto[i0:i1]
-    except:
-        return "{}"
-
-def extraer_json_vision(im_bytes: bytes, prompt: str):
-    def call(msg_extra=""):
+def extraer_json_vision(im_bytes, prompt, modo="auditoria"):
+    """Ejecuta 1 o 3 pasadas según el modo."""
+    def call(extra=""):
         resp = openai.chat.completions.create(
             model="gpt-4o",
-            response_format={"type":"json_object"},
+            response_format={"type": "json_object"},
             messages=[
-                {"role":"system","content":"Eres perito en pagarés colombianos. Devuelve SIEMPRE JSON estricto con las claves exactas indicadas."},
-                {"role":"user","content":prompt + msg_extra},
-                {"role":"user","content":[{"type":"image_url","image_url":{"url":f"data:image/png;base64,{base64.b64encode(im_bytes).decode()}","detail":"high"}}]}
+                {"role": "system", "content": "Eres perito en lectura de pagarés colombianos. Devuelve SIEMPRE JSON estricto."},
+                {"role": "user", "content": prompt + extra},
+                {"role": "user", "content": [
+                    {"type": "image_url", "image_url": {
+                        "url": f"data:image/png;base64,{base64.b64encode(im_bytes).decode()}",
+                        "detail": "high"
+                    }}
+                ]}
             ],
-            max_tokens=1200
+            max_tokens=1000,
         )
-        return json.loads(limpiar_json_bloque(resp.choices[0].message.content))
-    o1 = call("\nModo: PRECISO. Usa solo lo que leas.")
-    o2 = call("\nModo: INTERPRETATIVO. Si algo es dudoso, infiere por formato (años recientes, etc.).")
-    o3 = call("\nModo: VERIFICACION. Relee y corrige inconsistencias; si puedes incluye campo 'confianza_por_campo' 0.0–1.0.")
-    return o1, o2, o3
+        return json.loads(limpiar_json(resp.choices[0].message.content))
 
-# =========================
-# Normalización, validación y consenso
-# =========================
-MAP = {
-    "Número de pagaré":"Numero de Pagare","NumeroDePagare":"Numero de Pagare","Numero de Pagare":"Numero de Pagare",
-    "Ciudad":"Ciudad",
-    "Día (en letras)":"Dia (en letras)","DiaEnLetras":"Dia (en letras)","Dia (en letras)":"Dia (en letras)",
-    "Día (en número)":"Dia (en numero)","DiaEnNumero":"Dia (en numero)","Dia (en numero)":"Dia (en numero)",
-    "Mes":"Mes",
-    "Año (en letras)":"Año (en letras)","AnoEnLetras":"Año (en letras)",
-    "Año (en número)":"Año (en numero)","AnoEnNumero":"Año (en numero)",
-    "Valor en letras":"Valor en letras","ValorEnLetras":"Valor en letras",
-    "Valor en números":"Valor en numeros","ValorEnNumeros":"Valor en numeros",
-    "Nombre del deudor":"Nombre del Deudor","Nombre del Deudor":"Nombre del Deudor",
-    "Cédula o número de identificación":"Cedula","Cedula o numero de identificacion":"Cedula","Cedula":"Cedula",
-    "Dirección":"Direccion","Direccion":"Direccion",
-    "Teléfono":"Telefono","Telefono":"Telefono",
-    "Fecha de firma":"Fecha de Firma","Fecha de Firma":"Fecha de Firma"
-}
-def normaliza_claves(d):
-    out={}
-    for k,v in d.items():
-        k2 = MAP.get(k,k).strip()
-        out[k2] = v.strip() if isinstance(v,str) else v
-    return out
-
-def valida_y_arregla_basico(d):
-    # Cédula
-    if "Cedula" in d:
-        ced = re.sub(r"\D","",str(d["Cedula"]))
-        d["Cedula"] = ced if 6<=len(ced)<=10 else ""
-    # Teléfono
-    if "Telefono" in d:
-        tel = re.sub(r"\D","",str(d["Telefono"]))
-        d["Telefono"] = tel if len(tel)==10 and tel.startswith("3") else ""
-    # Año (en numero) en rango razonable
-    if "Año (en numero)" in d:
-        yn = re.sub(r"\D","",str(d["Año (en numero)"]))
-        if yn: 
-            y = int(yn)
-            if not (2020<=y<=2026): d["Año (en numero)"] = ""
-        else:
-            d["Año (en numero)"] = ""
-    # Fecha formato
-    if "Fecha de Firma" in d:
-        d["Fecha de Firma"] = str(d["Fecha de Firma"]).replace("/","-")
-    # Tildes frecuentes
-    for k in list(d.keys()):
-        if isinstance(d[k],str):
-            d[k] = d[k].replace("Monteria","Montería")
-    return d
-
-def consenso_campo(v1,v2,v3):
-    s = [str(v).strip() for v in (v1,v2,v3) if str(v).strip()!=""]
-    if not s: return ""
-    for v in s:
-        if s.count(v)>=2: return v
-    return max(s,key=len)
-
-def consenso_dict(a,b,c):
-    keys = set(a.keys())|set(b.keys())|set(c.keys())
-    out={}
-    for k in keys:
-        out[k]=consenso_campo(a.get(k,""),b.get(k,""),c.get(k,""))
-    return out
-
-def score_coherencia(d):
-    score=0; alerts=[]
-    nom = d.get("Nombre del Deudor","")
-    if re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]{6,60}", nom): score+=2
-    else: alerts.append("Nombre dudoso")
-    if re.fullmatch(r"\d{6,10}", d.get("Cedula","")): score+=3
-    else: alerts.append("Cédula inválida")
-    if d.get("Valor en letras") and d.get("Valor en numeros"):
-        if valores_consistentes(d["Valor en letras"], d["Valor en numeros"]):
-            score+=4
-        else:
-            alerts.append("Valor letras ≠ números")
+    if modo == "economico":
+        return call("\nModo rápido, interpreta directamente el texto visible.")
     else:
-        alerts.append("Valor faltante")
-    if re.fullmatch(r"\d{4}", d.get("Año (en numero)","")): score+=1
-    else: alerts.append("Año (en número) inválido")
-    return score, alerts
+        o1 = call("\nModo: PRECISO.")
+        o2 = call("\nModo: INTERPRETATIVO.")
+        o3 = call("\nModo: VERIFICACIÓN.")
+        final = {}
+        keys = set(o1.keys()) | set(o2.keys()) | set(o3.keys())
+        for k in keys:
+            vals = [str(o.get(k, "")).strip() for o in [o1, o2, o3] if o.get(k)]
+            if not vals:
+                final[k] = ""
+            elif any(vals.count(v) >= 2 for v in vals):
+                final[k] = max(vals, key=vals.count)
+            else:
+                final[k] = max(vals, key=len)
+        return final
 
 # =========================
-# UI: carga
+# 📁 INTERFAZ DE CARGA
 # =========================
-if "pagares_data" not in st.session_state:
-    st.session_state.pagares_data = []
+st.header("1️⃣ Carga del pagaré")
+modo_doc = st.radio("Tipo de documento:", ["📄 PDF", "📸 Imágenes"])
+modo_proceso = st.radio("Modo de extracción:", ["🟢 Económico (rápido)", "🧠 Auditoría (alta precisión)"])
+modo_proceso = "economico" if "Económico" in modo_proceso else "auditoria"
 
-st.header("1) Carga del pagaré")
-modo = st.radio("Tipo de archivo:", ["📄 PDF","📸 Imágenes"])
-
-cabecera_bytes = None
-manuscrita_bytes = None
-
-if modo=="📄 PDF":
-    up = st.file_uploader("Sube el PDF", type=["pdf"])
-    if up:
+cabecera_bytes, manuscrita_bytes = None, None
+if modo_doc == "📄 PDF":
+    pdf = st.file_uploader("Sube el pagaré (PDF)", type=["pdf"])
+    if pdf:
         try:
-            cab, man, thumbs = pdf_primera_y_ultima_a_png(up.read())
-            col1,col2 = st.columns(2)
-            col1.image(thumbs[0], caption="Cabecera")
-            col2.image(thumbs[1], caption="Parte manuscrita")
-            cabecera_bytes = mejorar_imagen(cab)
-            manuscrita_bytes = mejorar_imagen(man)
+            cab, man, thumbs = pdf_a_imagenes(pdf.read())
+            st.image(thumbs, caption=["Cabecera", "Parte manuscrita"], width=300)
+            cabecera_bytes, manuscrita_bytes = mejorar_imagen(cab), mejorar_imagen(man)
         except Exception as e:
-            st.error(f"Error con PDF: {e}")
+            st.error(f"Error al procesar PDF: {e}")
 else:
-    cab = st.file_uploader("Imagen — Cabecera", type=["png","jpg","jpeg"])
-    man = st.file_uploader("Imagen — Parte manuscrita", type=["png","jpg","jpeg"])
+    cab = st.file_uploader("Cabecera", type=["jpg", "jpeg", "png"])
+    man = st.file_uploader("Parte manuscrita", type=["jpg", "jpeg", "png"])
     if cab and man:
-        col1,col2 = st.columns(2)
+        col1, col2 = st.columns(2)
         col1.image(cab, caption="Cabecera")
         col2.image(man, caption="Parte manuscrita")
-        cabecera_bytes = mejorar_imagen(cab.read())
-        manuscrita_bytes = mejorar_imagen(man.read())
+        cabecera_bytes, manuscrita_bytes = mejorar_imagen(cab.read()), mejorar_imagen(man.read())
 
 # =========================
-# Extracción y validación
+# 🤖 PROCESAMIENTO
 # =========================
 if cabecera_bytes and manuscrita_bytes:
     st.divider()
-    st.header("2) Extracción automática + validación crítica")
+    st.header("2️⃣ Extracción automática")
 
-    if st.button("🚀 Ejecutar extracción IA"):
-        prompt_cab = (
-            "Extrae en JSON las claves EXACTAS: "
-            '{"Numero de Pagare":"","Ciudad":"","Dia (en letras)":"","Dia (en numero)":"","Mes":"",'
-            '"Año (en letras)":"","Año (en numero)":"","Valor en letras":"","Valor en numeros":""}'
-            " — Solo JSON."
-        )
-        prompt_man = (
-            "Extrae en JSON las claves EXACTAS: "
-            '{"Nombre del Deudor":"","Cedula":"","Direccion":"","Ciudad":"","Telefono":"","Fecha de Firma":""}'
-            " — Solo JSON."
-        )
+    if st.button("🚀 Ejecutar IA") and not st.session_state.procesando:
+        st.session_state.procesando = True
+        with st.spinner("Procesando pagaré..."):
+            prompt_cab = '{"Numero de Pagare":"","Ciudad":"","Dia (en letras)":"","Dia (en numero)":"","Mes":"","Año (en letras)":"","Año (en numero)":"","Valor en letras":"","Valor en numeros":""}'
+            prompt_man = '{"Nombre del Deudor":"","Cedula":"","Direccion":"","Ciudad":"","Telefono":"","Fecha de Firma":""}'
+            cab = extraer_json_vision(cabecera_bytes, prompt_cab, modo=modo_proceso)
+            man = extraer_json_vision(manuscrita_bytes, prompt_man, modo=modo_proceso)
+            data = {**cab, **man}
+        st.session_state.procesando = False
 
-        c1,c2,c3 = extraer_json_vision(cabecera_bytes, prompt_cab)
-        m1,m2,m3 = extraer_json_vision(manuscrita_bytes, prompt_man)
+        st.json(data)
+        st.success("✅ Extracción completada")
 
-        c1,c2,c3 = [valida_y_arregla_basico(normaliza_claves(x)) for x in (c1,c2,c3)]
-        m1,m2,m3 = [valida_y_arregla_basico(normaliza_claves(x)) for x in (m1,m2,m3)]
+        # Validación crítica
+        errores = []
+        if not re.fullmatch(r"\d{6,10}", str(data.get("Cedula",""))):
+            errores.append("Cédula inválida")
+        if not re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]{5,60}", str(data.get("Nombre del Deudor",""))):
+            errores.append("Nombre inválido")
+        if not valores_consistentes(data.get("Valor en letras",""), data.get("Valor en numeros","")):
+            errores.append("Valor letras ≠ números")
+        if errores:
+            st.error("⚠️ Errores críticos: " + " | ".join(errores))
 
-        cab_final = consenso_dict(c1,c2,c3)
-        man_final = consenso_dict(m1,m2,m3)
-        data_auto = {**cab_final, **man_final}
-
-        ok_valor = valores_consistentes(data_auto.get("Valor en letras",""), data_auto.get("Valor en numeros",""))
-        score, alerts = score_coherencia(data_auto)
-
-        st.subheader("🧾 Resultado automático (consenso)")
-        st.json(data_auto)
-        st.write(f"**Score de coherencia:** {score}/10")
-        if alerts:
-            st.warning("⚠️ Alertas: " + " | ".join(alerts))
-        if not ok_valor:
-            st.error("❌ El valor en letras NO coincide con el valor en números. Revisión obligatoria.")
-
-        # =========================
-        # Edición manual + trazabilidad
-        # =========================
-        st.divider()
-        st.header("3) Corrección manual (trazabilidad obligatoria en críticos)")
-
-        data_edit = {}
+        # Edición manual
+        st.subheader("✏️ Corrección manual y trazabilidad")
         cambios = []
-        cols = list(data_auto.keys())
-        orden = [*CRITICAL_FIELDS] + [c for c in cols if c not in CRITICAL_FIELDS]
-
-        for campo in orden:
-            val_inicial = str(data_auto.get(campo,""))
-            nuevo = st.text_input(campo, val_inicial)
+        data_edit = {}
+        for campo, valor in data.items():
+            nuevo = st.text_input(campo, str(valor))
             data_edit[campo] = nuevo
-            if nuevo.strip() != val_inicial.strip():
+            if str(nuevo).strip() != str(valor).strip():
                 cambios.append(campo)
 
-        def criticos_ok(d):
-            ok = True; msgs=[]
-            if not re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]{6,60}", d.get("Nombre del Deudor","")):
-                ok=False; msgs.append("Nombre inválido")
-            if not re.fullmatch(r"\d{6,10}", re.sub(r"\D","", d.get("Cedula",""))):
-                ok=False; msgs.append("Cédula inválida")
-            if not valores_consistentes(d.get("Valor en letras",""), d.get("Valor en numeros","")):
-                ok=False; msgs.append("Valor letras ≠ números")
-            return ok, msgs
-
         if st.button("💾 Guardar registro"):
-            data_edit["Cedula"] = re.sub(r"\D","", data_edit.get("Cedula",""))
-            data_edit["Telefono"] = re.sub(r"\D","", data_edit.get("Telefono",""))
-            data_edit["Fecha de Firma"] = str(data_edit.get("Fecha de Firma","")).replace("/","-")
-
-            ok, msgs = criticos_ok(data_edit)
-            if not ok:
-                st.error("No se puede guardar: " + " | ".join(msgs))
-            else:
-                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                registro = data_edit.copy()
-                registro["Campos Modificados"] = ", ".join(cambios) if cambios else "Sin cambios"
-                registro["Editado Manualmente"] = "Sí" if cambios else "No"
-                registro["Alertas"] = " | ".join(alerts) if alerts else ""
-                registro["Score Coherencia"] = score
-                registro["Origen"] = "Consenso (3 pasadas)"
-                registro["Timestamp"] = timestamp
-                st.session_state.pagares_data.append(registro)
-                st.success(f"✅ Registro guardado. Cambios manuales: {len(cambios)} campo(s).")
+            registro = data_edit.copy()
+            registro["Campos Modificados"] = ", ".join(cambios) if cambios else "Sin cambios"
+            registro["Editado Manualmente"] = "Sí" if cambios else "No"
+            registro["Modo"] = modo_proceso
+            registro["Fecha Registro"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.session_state.pagares_data.append(registro)
+            st.success(f"✅ Guardado con éxito. Cambios: {len(cambios)} campo(s).")
 
 # =========================
-# Exportación
+# 📊 EXPORTAR
 # =========================
 if st.session_state.pagares_data:
     st.divider()
-    st.header("4) Exportar resultados")
+    st.header("3️⃣ Exportar resultados")
     df = pd.DataFrame(st.session_state.pagares_data)
     st.dataframe(df, use_container_width=True)
-
     buf = io.BytesIO()
     df.to_excel(buf, index=False, engine="openpyxl")
     buf.seek(0)
     st.download_button(
-        "⬇️ Descargar Excel con trazabilidad",
+        "⬇️ Descargar Excel",
         buf,
         "pagares_extraidos.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
