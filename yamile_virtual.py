@@ -259,4 +259,3 @@ if st.session_state.pagares_data:
 
     st.download_button(
         "⬇️ Descargar Excel con resultados",
-
