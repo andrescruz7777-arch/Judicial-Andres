@@ -5,6 +5,7 @@ import io
 import base64
 import openai
 import json
+import fitz  # PyMuPDF
 
 # =====================================
 # 🧭 CONFIGURACIÓN INICIAL
@@ -96,23 +97,35 @@ else:
 
     if archivo_pdf:
         try:
-            from pdf2image import convert_from_bytes
-            paginas = convert_from_bytes(archivo_pdf.read())
-            st.success(f"📚 Se detectaron {len(paginas)} páginas en el PDF.")
-            col1, col2 = st.columns(2)
-            col1.image(paginas[0], caption="Cabecera detectada", use_column_width=True)
-            col2.image(paginas[-1], caption="Parte manuscrita detectada", use_column_width=True)
+            pdf_bytes = archivo_pdf.read()
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
-            cabecera_io = io.BytesIO()
-            paginas[0].save(cabecera_io, format="PNG")
-            cabecera_bytes = cabecera_io.getvalue()
+            if len(doc) == 0:
+                st.error("⚠️ El PDF está vacío o dañado.")
+            else:
+                st.success(f"📚 Se detectaron {len(doc)} páginas en el PDF.")
 
-            manuscrita_io = io.BytesIO()
-            paginas[-1].save(manuscrita_io, format="PNG")
-            manuscrita_bytes = manuscrita_io.getvalue()
+                # Convertir primera y última página en imagen
+                paginas = [doc.load_page(0), doc.load_page(len(doc) - 1)]
+                imagenes = []
+                for pagina in paginas:
+                    pix = pagina.get_pixmap(dpi=150)
+                    img = Image.open(io.BytesIO(pix.tobytes("png")))
+                    imagenes.append(img)
 
-        except ModuleNotFoundError:
-            st.error("⚠️ Falta el módulo 'pdf2image'. Instálalo con: `pip install pdf2image`")
+                col1, col2 = st.columns(2)
+                col1.image(imagenes[0], caption="Cabecera detectada", use_column_width=True)
+                col2.image(imagenes[1], caption="Parte manuscrita detectada", use_column_width=True)
+
+                # Convertir imágenes a bytes
+                cabecera_io = io.BytesIO()
+                imagenes[0].save(cabecera_io, format="PNG")
+                cabecera_bytes = cabecera_io.getvalue()
+
+                manuscrita_io = io.BytesIO()
+                imagenes[1].save(manuscrita_io, format="PNG")
+                manuscrita_bytes = manuscrita_io.getvalue()
+
         except Exception as e:
             st.error(f"❌ Error al procesar el PDF: {e}")
 
@@ -206,7 +219,3 @@ if st.session_state.pagares_data:
     )
 
     st.success("✅ Exportación lista. Puedes seguir agregando más pagarés.")
-
-    if st.button("🗑️ Reiniciar"):
-        st.session_state.pagares_data = []
-        st.experimental_rerun()
