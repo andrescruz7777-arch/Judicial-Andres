@@ -13,7 +13,7 @@ import openai
 # =========================
 # ⚙️ CONFIGURACIÓN INICIAL
 # =========================
-st.set_page_config(page_title="Extractor de Pagarés — COS JudicIA", layout="wide")
+st.set_page_config(page_title="Extractor de Pagarés — Abogado-COL 🇨🇴", layout="wide")
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 # =========================
 # 🎨 ESTILO (CSS + Fuentes)
