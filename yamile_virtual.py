@@ -12,26 +12,6 @@ import json
 st.set_page_config(page_title="📄 Extractor Pagarés con IA", layout="wide")
 st.title("✍️ Extractor de Pagarés - COS JudicIA 🤖")
 
-# Estilo corporativo
-st.markdown("""
-<style>
-    body, .stApp {
-        background-color: #FFFFFF;
-        color: #1B168C;
-    }
-    .stButton button {
-        background-color: #1B168C;
-        color: white;
-        border-radius: 8px;
-        font-weight: 600;
-    }
-    .stButton button:hover {
-        background-color: #F43B63;
-        color: white;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 # =====================================
 # 🔑 API Key segura
 # =====================================
@@ -115,20 +95,26 @@ else:
     archivo_pdf = st.file_uploader("Cargar archivo PDF del pagaré", type=["pdf"])
 
     if archivo_pdf:
-        from pdf2image import convert_from_bytes
-        paginas = convert_from_bytes(archivo_pdf.read())
-        st.success(f"📚 Se detectaron {len(paginas)} páginas en el PDF.")
-        col1, col2 = st.columns(2)
-        col1.image(paginas[0], caption="Cabecera detectada", use_column_width=True)
-        col2.image(paginas[-1], caption="Parte manuscrita detectada", use_column_width=True)
+        try:
+            from pdf2image import convert_from_bytes
+            paginas = convert_from_bytes(archivo_pdf.read())
+            st.success(f"📚 Se detectaron {len(paginas)} páginas en el PDF.")
+            col1, col2 = st.columns(2)
+            col1.image(paginas[0], caption="Cabecera detectada", use_column_width=True)
+            col2.image(paginas[-1], caption="Parte manuscrita detectada", use_column_width=True)
 
-        cabecera_bytes_io = io.BytesIO()
-        paginas[0].save(cabecera_bytes_io, format="PNG")
-        cabecera_bytes = cabecera_bytes_io.getvalue()
+            cabecera_io = io.BytesIO()
+            paginas[0].save(cabecera_io, format="PNG")
+            cabecera_bytes = cabecera_io.getvalue()
 
-        manuscrita_bytes_io = io.BytesIO()
-        paginas[-1].save(manuscrita_bytes_io, format="PNG")
-        manuscrita_bytes = manuscrita_bytes_io.getvalue()
+            manuscrita_io = io.BytesIO()
+            paginas[-1].save(manuscrita_io, format="PNG")
+            manuscrita_bytes = manuscrita_io.getvalue()
+
+        except ModuleNotFoundError:
+            st.error("⚠️ Falta el módulo 'pdf2image'. Instálalo con: `pip install pdf2image`")
+        except Exception as e:
+            st.error(f"❌ Error al procesar el PDF: {e}")
 
 # =====================================
 # 🤖 Paso 3: Extracción con doble validación
@@ -138,7 +124,6 @@ if cabecera_bytes and manuscrita_bytes:
     st.header("🤖 Paso 3: Extracción Inteligente con Validación Doble")
 
     if st.button("🚀 Ejecutar análisis con IA"):
-        # Instrucciones
         instruccion_cabecera = """
         Extrae los siguientes datos del pagaré:
         - Número de pagaré (si aparece)
@@ -164,15 +149,13 @@ if cabecera_bytes and manuscrita_bytes:
         Devuélvelo en formato JSON con esos campos.
         """
 
-        # 🧩 Doble ejecución para precisión
         st.info("⌛ Procesando dos interpretaciones de la IA (esto puede tardar unos segundos)...")
+
         resultado_cab_1 = extraer_con_ia(cabecera_bytes, instruccion_cabecera)
         resultado_cab_2 = extraer_con_ia(cabecera_bytes, instruccion_cabecera + "\nIntenta interpretar incluso si los datos son poco legibles.")
-
         resultado_man_1 = extraer_con_ia(manuscrita_bytes, instruccion_manuscrita)
         resultado_man_2 = extraer_con_ia(manuscrita_bytes, instruccion_manuscrita + "\nSé más interpretativo en nombres o números ilegibles.")
 
-        # Mostrar comparativo
         st.subheader("🧾 Comparativo de Resultados")
         col1, col2 = st.columns(2)
         with col1:
@@ -184,8 +167,8 @@ if cabecera_bytes and manuscrita_bytes:
             st.code(resultado_cab_2, language="json")
             st.code(resultado_man_2, language="json")
 
-        # Elección del usuario
         opcion = st.radio("Selecciona la versión que deseas guardar:", ["Opción 1 (Precisa)", "Opción 2 (Interpretativa)"])
+
         if st.button("💾 Guardar resultado seleccionado"):
             try:
                 if opcion.startswith("Opción 1"):
@@ -223,7 +206,6 @@ if st.session_state.pagares_data:
     )
 
     st.success("✅ Exportación lista. Puedes seguir agregando más pagarés.")
-
 
     if st.button("🗑️ Reiniciar"):
         st.session_state.pagares_data = []
