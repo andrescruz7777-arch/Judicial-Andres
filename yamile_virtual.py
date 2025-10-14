@@ -372,4 +372,42 @@ if menu == "✏️ Corrección manual":
 # =========================
 if menu == "📊 Histórico / Excel":
     if st.session_state.pagares_data:
-        df_hist = pd.DataFrame(st.session_state.paga
+        df_hist = pd.DataFrame(st.session_state.pagares_data)
+        st.dataframe(df_hist, use_container_width=True, height=440)
+        excel_io = io.BytesIO()
+        df_hist.to_excel(excel_io, index=False, engine="openpyxl")
+        excel_io.seek(0)
+        st.download_button("⬇️ Descargar Excel", data=excel_io, file_name="resultados_pagares.xlsx")
+    else:
+        st.info("Aún no hay registros guardados.")
+
+# =========================
+# 🪟 DRAWER LATERAL
+# =========================
+def render_drawer():
+    st.markdown('<div class="drawer-mask"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="drawer">', unsafe_allow_html=True)
+    st.markdown("### ✏️ Editar campos del pagaré")
+    updated = {}
+    for campo, valor in st.session_state.drawer_payload.items():
+        updated[campo] = st.text_input(campo, str(valor))
+    col1, col2 = st.columns(2)
+    cancel = col1.button("❌ Cancelar")
+    save = col2.button("💾 Guardar cambios")
+    if cancel:
+        st.session_state.drawer_open = False
+    if save:
+        orig = st.session_state.ultimo_registro or {}
+        cambios = [k for k in updated if str(updated[k]).strip() != str(orig.get(k, "")).strip()]
+        st.session_state.ultimo_registro = updated.copy()
+        registro = updated.copy()
+        registro["Campos Modificados"] = ", ".join(cambios) if cambios else "Sin cambios"
+        registro["Editado Manualmente"] = "Sí" if cambios else "No"
+        registro["Fecha Registro"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.pagares_data.append(registro)
+        st.session_state.drawer_open = False
+        st.success(f"✅ Guardado ({len(cambios)} cambios).")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+if st.session_state.drawer_open:
+    render_drawer()
