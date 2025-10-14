@@ -15,7 +15,6 @@ import openai
 # =========================
 st.set_page_config(page_title="Extractor de Pagarés — COS JudicIA", layout="wide")
 openai.api_key = st.secrets["OPENAI_API_KEY"]
-
 # =========================
 # 🎨 ESTILO (CSS + Fuentes)
 # =========================
@@ -74,7 +73,7 @@ html, body, .stApp { background: var(--bg) !important; }
 }
 
 /* ===============================
-   🔤 Etiquetas y botones secundarios
+   🔤 Etiquetas y texto general
 =============================== */
 label, .stRadio label, .stSelectbox label, .stCheckbox label, .stMarkdown, .stText {
     color: #000000 !important;
@@ -117,13 +116,15 @@ label, .stRadio label, .stSelectbox label, .stCheckbox label, .stMarkdown, .stTe
     box-shadow: 0 0 0 1px #2F80ED !important;
 }
 
-.stFileUploader, .stFileUploader div, .stFileUploader label, .stFileUploader span {
+/* 🔹 SOLO este bloque ajusta el área del FileUploader */
+[data-testid="stFileUploaderDropzone"] {
+    background-color: #FFFFFF !important;
+    border: 1.5px dashed #CCCCCC !important;
+    border-radius: 12px !important;
     color: #000000 !important;
 }
-.stFileUploader > div:first-child {
-    background-color: #FFFFFF !important;
-    border-radius: 12px !important;
-    border: 1px solid #CCCCCC !important;
+[data-testid="stFileUploaderDropzone"] p {
+    color: #000000 !important;
 }
 .stFileUploader button {
     background-color: #2F80ED !important;
