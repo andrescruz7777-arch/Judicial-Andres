@@ -35,12 +35,14 @@ st.markdown(
   --success:#2ECC71;
 }
 html, body, .stApp { background: var(--bg) !important; }
-* { font-family: 'Poppins', sans-serif; }
+* { font-family: 'Poppins', sans-serif; color: var(--text) !important; }
+
 [data-testid="stSidebar"] {
     background: var(--sidebar) !important;
     border-right: 0;
 }
 [data-testid="stSidebar"] * { color: #E9EEF6 !important; }
+
 .sidebar-logo {
   display:flex; align-items:center; gap:.6rem; margin: .5rem 0 1rem 0;
 }
@@ -54,12 +56,14 @@ html, body, .stApp { background: var(--bg) !important; }
   background: rgba(255,255,255,0.05); border-radius:12px; margin-bottom:.6rem;
   font-size:.9rem;
 }
+
 .app-header {
   position: sticky; top: 0; z-index: 50;
   background: #ffffff; border-radius: 16px; padding: .9rem 1.2rem;
   box-shadow: 0 6px 18px rgba(0,0,0,.06);
   display:flex; align-items:center; justify-content:space-between; gap:1rem;
 }
+
 .searchbox{
   display:flex; align-items:center; gap:.6rem; flex:1;
   background:#F1F4F9; border:1px solid #E6E9F0; border-radius:12px; padding:.55rem .8rem;
@@ -68,6 +72,14 @@ html, body, .stApp { background: var(--bg) !important; }
   outline:none; border:none; background:transparent; width:100%;
   font-size:.95rem; color:var(--text);
 }
+
+/* ===============================
+   🔤 Etiquetas y botones secundarios
+=============================== */
+label, .stRadio label, .stSelectbox label, .stCheckbox label, .stMarkdown, .stText {
+    color: #000000 !important;
+}
+
 .card{
   background: var(--card); border-radius: 16px; padding: 1rem 1.1rem;
   box-shadow: 0 8px 24px rgba(31,41,64,0.06);
@@ -78,33 +90,40 @@ html, body, .stApp { background: var(--bg) !important; }
 }
 .metric .label{ color: var(--muted); font-size:.85rem; }
 .metric .value{ font-size:1.6rem; font-weight:700; color:var(--text); }
+
 .stButton>button{
   background: var(--primary) !important; color:#fff !important; border:none;
   padding:.6rem 1rem; border-radius: 12px; font-weight:600;
   transition:.2s transform ease;
 }
 .stButton>button:hover{ background: var(--primary-700) !important; transform: translateY(-1px); }
+
 .stDataFrame{
   border-radius: 12px; overflow: hidden; border:1px solid #EEF1F6;
   box-shadow: 0 8px 24px rgba(31,41,64,0.05);
 }
+
+/* ===============================
+   📝 Inputs y FileUploader
+=============================== */
 .stTextInput > div > div > input {
-    background-color: #1F1F1F !important;
-    color: #FFFFFF !important;
+    background-color: #FFFFFF !important;
+    color: #000000 !important;
     border-radius: 8px;
-    border: 1px solid #333 !important;
+    border: 1px solid #CCCCCC !important;
 }
 .stTextInput > div > div > input:focus {
     border: 1px solid #2F80ED !important;
     box-shadow: 0 0 0 1px #2F80ED !important;
 }
+
 .stFileUploader, .stFileUploader div, .stFileUploader label, .stFileUploader span {
-    color: #FFFFFF !important;
+    color: #000000 !important;
 }
 .stFileUploader > div:first-child {
-    background-color: #2F2F2F !important;
+    background-color: #FFFFFF !important;
     border-radius: 12px !important;
-    border: 1px solid #3A3A3A !important;
+    border: 1px solid #CCCCCC !important;
 }
 .stFileUploader button {
     background-color: #2F80ED !important;
@@ -115,6 +134,10 @@ html, body, .stApp { background: var(--bg) !important; }
 .stFileUploader button:hover {
     background-color: #1B5EC8 !important;
 }
+
+/* ===============================
+   ⚙️ Loaders y banners
+=============================== */
 .ia-loader {
     text-align: center;
     font-weight: 600;
@@ -151,7 +174,6 @@ html, body, .stApp { background: var(--bg) !important; }
 """,
     unsafe_allow_html=True,
 )
-
 # =========================
 # 🧠 ESTADO GLOBAL
 # =========================
