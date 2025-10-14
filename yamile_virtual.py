@@ -177,7 +177,6 @@ Devuélvelo en formato JSON con esas claves exactas:
 }
 """
 
-            # ✅ PROMPT con Ciudad de Firma mejorado
             prompt_man = """
 Extrae los siguientes datos manuscritos del pagaré:
 
@@ -226,14 +225,23 @@ if st.session_state.ultimo_registro:
         if str(nuevo).strip() != str(valor).strip():
             cambios.append(campo)
 
-    if st.button("💾 Guardar registro"):
-        registro = data_edit.copy()
-        registro["Campos Modificados"] = ", ".join(cambios) if cambios else "Sin cambios"
-        registro["Editado Manualmente"] = "Sí" if cambios else "No"
-        registro["Modo"] = modo_proceso
-        registro["Fecha Registro"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.pagares_data.append(registro)
-        st.success(f"✅ Registro guardado correctamente ({len(cambios)} cambios).")
+    col_guardar, col_limpiar = st.columns([2,1])
+    with col_guardar:
+        if st.button("💾 Guardar registro"):
+            registro = data_edit.copy()
+            registro["Campos Modificados"] = ", ".join(cambios) if cambios else "Sin cambios"
+            registro["Editado Manualmente"] = "Sí" if cambios else "No"
+            registro["Modo"] = modo_proceso
+            registro["Fecha Registro"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.session_state.pagares_data.append(registro)
+            st.success(f"✅ Registro guardado correctamente ({len(cambios)} cambios).")
+
+    # 🧹 Botón para limpiar toda la tabla
+    with col_limpiar:
+        if st.button("🧹 Limpiar tabla"):
+            st.session_state.pagares_data = []
+            st.session_state.ultimo_registro = None
+            st.success("🧾 Tabla vaciada correctamente. Puedes empezar de nuevo.")
 
 # =========================
 # EXPORTACIÓN A EXCEL
