@@ -8,7 +8,7 @@ import openai
 # ⚙️ CONFIGURACIÓN INICIAL
 # =========================
 st.set_page_config(page_title="Extractor de Pagarés — COS JudicIA", layout="wide")
-st.title("✍️ Extractor de Pagarés con IA")
+st.title("✍️ Extractor de Pagarés con IA JUDIC-IA-L")
 
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
