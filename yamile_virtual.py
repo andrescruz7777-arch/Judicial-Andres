@@ -433,6 +433,6 @@ def render_editor():
         st.session_state.drawer_open = False
         st.success(f"✅ Guardado correctamente ({len(cambios)} cambios).")
 
+# Renderiza el formulario si está activo
 if st.session_state.drawer_open:
     render_editor()
-
