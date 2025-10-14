@@ -1,189 +1,64 @@
-# ============================================
-# 📄 Extractor de Pagarés — COS JudicIA (UI Moderno Mejorado)
-# Estilo CrmX Admin con flujo guiado
-# ============================================
-
 import streamlit as st
 import pandas as pd
 from PIL import Image
-import io, base64, json, re, datetime
-import fitz  # PyMuPDF
+import io, base64, json, re, datetime, fitz
 import openai
 
 # =========================
 # ⚙️ CONFIGURACIÓN INICIAL
 # =========================
-st.set_page_config(page_title="Extractor de Pagarés — Abogado-COL 🇨🇴", layout="wide")
+st.set_page_config(page_title="Extractor de Pagarés — COS JudicIA", layout="wide")
+st.title("✍️ Extractor de Pagarés con IA JUDIC-IA-L ⚖️")
+
 openai.api_key = st.secrets["OPENAI_API_KEY"]
+
 # =========================
-# 🎨 ESTILO (CSS + Fuentes)
+# 🎨 ESTILOS (CSS + FUENTES)
 # =========================
-st.markdown(
-    """
+st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
-:root{
-  --bg: #F7F8FA;
-  --card: #FFFFFF;
-  --text: #1a1a1a;
-  --primary: #2F80ED;
-  --primary-700:#1F6ED0;
-  --accent: #FF6B6B;
-  --sidebar: #1F2940;
-  --muted:#8A94A6;
-  --success:#2ECC71;
-}
-html, body, .stApp { background: var(--bg) !important; }
-* { font-family: 'Poppins', sans-serif; color: var(--text) !important; }
-
-[data-testid="stSidebar"] {
-    background: var(--sidebar) !important;
-    border-right: 0;
-}
+html, body, .stApp { background: #F7F8FA !important; color: #1a1a1a !important; font-family: 'Poppins', sans-serif; }
+h1, h2, h3, h4 { color: #1a1a1a !important; }
+[data-testid="stSidebar"] { background-color: #1F2940 !important; }
 [data-testid="stSidebar"] * { color: #E9EEF6 !important; }
-
-.sidebar-logo {
-  display:flex; align-items:center; gap:.6rem; margin: .5rem 0 1rem 0;
-}
-.sidebar-logo .logo-dot{
-  width:12px; height:12px; border-radius:50%;
-  background: linear-gradient(135deg, var(--primary), var(--accent));
-  display:inline-block;
-}
-.sidebar-user {
-  display:flex; align-items:center; gap:.6rem; padding:.6rem .6rem;
-  background: rgba(255,255,255,0.05); border-radius:12px; margin-bottom:.6rem;
-  font-size:.9rem;
-}
-
-.app-header {
-  position: sticky; top: 0; z-index: 50;
-  background: #ffffff; border-radius: 16px; padding: .9rem 1.2rem;
-  box-shadow: 0 6px 18px rgba(0,0,0,.06);
-  display:flex; align-items:center; justify-content:space-between; gap:1rem;
-}
-
-.searchbox{
-  display:flex; align-items:center; gap:.6rem; flex:1;
-  background:#F1F4F9; border:1px solid #E6E9F0; border-radius:12px; padding:.55rem .8rem;
-}
-.searchbox input{
-  outline:none; border:none; background:transparent; width:100%;
-  font-size:.95rem; color:var(--text);
-}
-
-/* ===============================
-   🔤 Etiquetas y texto general
-=============================== */
-label, .stRadio label, .stSelectbox label, .stCheckbox label, .stMarkdown, .stText {
-    color: #000000 !important;
-}
-
-.card{
-  background: var(--card); border-radius: 16px; padding: 1rem 1.1rem;
-  box-shadow: 0 8px 24px rgba(31,41,64,0.06);
-  border: 1px solid #EEF1F6;
-}
-.metric{
-  display:flex; align-items:flex-start; justify-content:space-between;
-}
-.metric .label{ color: var(--muted); font-size:.85rem; }
-.metric .value{ font-size:1.6rem; font-weight:700; color:var(--text); }
-
-.stButton>button{
-  background: var(--primary) !important; color:#fff !important; border:none;
-  padding:.6rem 1rem; border-radius: 12px; font-weight:600;
-  transition:.2s transform ease;
-}
-.stButton>button:hover{ background: var(--primary-700) !important; transform: translateY(-1px); }
-
-.stDataFrame{
-  border-radius: 12px; overflow: hidden; border:1px solid #EEF1F6;
-  box-shadow: 0 8px 24px rgba(31,41,64,0.05);
-}
-
-/* ===============================
-   📝 Inputs y FileUploader
-=============================== */
 .stTextInput > div > div > input {
     background-color: #FFFFFF !important;
     color: #000000 !important;
     border-radius: 8px;
     border: 1px solid #CCCCCC !important;
 }
-.stTextInput > div > div > input:focus {
-    border: 1px solid #2F80ED !important;
-    box-shadow: 0 0 0 1px #2F80ED !important;
-}
-
-/* 🔹 SOLO este bloque ajusta el área del FileUploader */
 [data-testid="stFileUploaderDropzone"] {
     background-color: #FFFFFF !important;
     border: 1.5px dashed #CCCCCC !important;
     border-radius: 12px !important;
     color: #000000 !important;
 }
-[data-testid="stFileUploaderDropzone"] p {
-    color: #000000 !important;
-}
-.stFileUploader button {
-    background-color: #2F80ED !important;
-    color: #FFFFFF !important;
-    border-radius: 10px !important;
+[data-testid="stFileUploaderDropzone"] p { color: #000000 !important; }
+.stButton>button {
+    background: #2F80ED !important;
+    color: white !important;
     border: none !important;
+    border-radius: 10px !important;
+    padding: 0.5rem 1rem !important;
+    font-weight: 600 !important;
 }
-.stFileUploader button:hover {
-    background-color: #1B5EC8 !important;
-}
-
-/* ===============================
-   ⚙️ Loaders y banners
-=============================== */
-.ia-loader {
-    text-align: center;
-    font-weight: 600;
-    font-size: 1.1rem;
-    padding: 1rem;
-    border-radius: 12px;
-    background: #E8F2FF;
-    color: #1F2940;
-    border: 1px solid #BFD6FF;
-    margin-top: 1rem;
-    animation: pulse 2s infinite;
-}
-@keyframes pulse {
-  0% {opacity: 1;}
-  50% {opacity: 0.5;}
-  100% {opacity: 1;}
-}
-.success-banner {
-    background: #D1FAE5;
-    color: #065F46;
-    padding: 1.2rem;
-    border-radius: 12px;
-    font-weight: 600;
-    text-align: center;
-    margin-top: 1rem;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.05);
-    animation: fadeIn 1s ease-in-out;
-}
-@keyframes fadeIn {
-    from {opacity:0; transform:translateY(10px);}
-    to {opacity:1; transform:translateY(0);}
-}
+.stButton>button:hover { background: #1F6ED0 !important; }
 </style>
-""",
-    unsafe_allow_html=True,
-)
-# =========================
-# 🧠 ESTADO GLOBAL
-# =========================
-for key in ["pagares_data", "ultimo_registro", "procesando", "drawer_open", "drawer_payload"]:
-    if key not in st.session_state:
-        st.session_state[key] = [] if key == "pagares_data" else None if key != "drawer_open" else False
+""", unsafe_allow_html=True)
 
 # =========================
-# 🔧 FUNCIONES
+# VARIABLES GLOBALES
+# =========================
+if "pagares_data" not in st.session_state:
+    st.session_state.pagares_data = []
+if "ultimo_registro" not in st.session_state:
+    st.session_state.ultimo_registro = None
+if "procesando" not in st.session_state:
+    st.session_state.procesando = False
+
+# =========================
+# FUNCIONES UTILITARIAS
 # =========================
 def mejorar_imagen(im_bytes):
     img = Image.open(io.BytesIO(im_bytes)).convert("L")
@@ -192,12 +67,11 @@ def mejorar_imagen(im_bytes):
     img.save(buf, format="PNG")
     return buf.getvalue()
 
-
 def pdf_a_imagenes(pdf_bytes):
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     if len(doc) == 0:
         raise ValueError("PDF vacío o dañado.")
-    pages = [doc.load_page(0), doc.load_page(len(doc) - 1)]
+    pages = [doc.load_page(0), doc.load_page(len(doc)-1)]
     imgs = []
     for p in pages:
         pix = p.get_pixmap(dpi=200)
@@ -207,80 +81,125 @@ def pdf_a_imagenes(pdf_bytes):
     imgs[1].save(man, format="PNG")
     return cab.getvalue(), man.getvalue(), imgs
 
-
 def limpiar_json(txt):
     try:
         i0, i1 = txt.index("{"), txt.rindex("}") + 1
         return txt[i0:i1]
-    except Exception:
+    except:
         return "{}"
 
+def letras_a_int(texto):
+    texto = texto.lower().replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ú","u")
+    unidades = {
+        "uno":1,"dos":2,"tres":3,"cuatro":4,"cinco":5,"seis":6,"siete":7,"ocho":8,"nueve":9,
+        "diez":10,"veinte":20,"treinta":30,"cuarenta":40,"cincuenta":50,"sesenta":60,"setenta":70,
+        "ochenta":80,"noventa":90,"cien":100,"mil":1000,"millon":1000000,"millones":1000000
+    }
+    total = 0
+    for p in texto.split():
+        if p in unidades:
+            total += unidades[p]
+    return total
 
-def extraer_json_vision(im_bytes, prompt):
-    resp = openai.chat.completions.create(
-        model="gpt-4o",
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": "Eres experto en pagarés colombianos. Devuelve solo JSON estricto."},
-            {"role": "user", "content": prompt},
-            {"role": "user", "content": [
-                {"type": "image_url", "image_url": {
-                    "url": f"data:image/png;base64,{base64.b64encode(im_bytes).decode()}",
-                    "detail": "high",
-                }}
-            ]},
-        ],
-        max_tokens=1000,
-    )
-    return json.loads(limpiar_json(resp.choices[0].message.content))
-
+def extraer_json_vision(im_bytes, prompt, modo="auditoria"):
+    def call(extra=""):
+        resp = openai.chat.completions.create(
+            model="gpt-4o",
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": "Eres experto en pagarés colombianos. Devuelve solo JSON estricto."},
+                {"role": "user", "content": prompt + extra},
+                {"role": "user", "content": [
+                    {"type": "image_url", "image_url": {
+                        "url": f"data:image/png;base64,{base64.b64encode(im_bytes).decode()}",
+                        "detail": "high"
+                    }}
+                ]}
+            ],
+            max_tokens=1000,
+        )
+        return json.loads(limpiar_json(resp.choices[0].message.content))
+    if modo == "economico":
+        return call("\nModo rápido, interpreta texto visible.")
+    else:
+        o1 = call("\nModo: Preciso.")
+        o2 = call("\nModo: Interpretativo.")
+        o3 = call("\nModo: Verificación.")
+        final = {}
+        keys = set(o1.keys()) | set(o2.keys()) | set(o3.keys())
+        for k in keys:
+            vals = [str(o.get(k, "")).strip() for o in [o1, o2, o3] if o.get(k)]
+            if not vals:
+                final[k] = ""
+            elif any(vals.count(v) >= 2 for v in vals):
+                final[k] = max(vals, key=vals.count)
+            else:
+                final[k] = max(vals, key=len)
+        return final
 
 # =========================
-# 🧭 SIDEBAR Y HEADER
+# 🧭 SIDEBAR (NAVEGACIÓN)
 # =========================
-with st.sidebar:
-    st.markdown(
-        '<div class="sidebar-logo"><span class="logo-dot"></span><span><b>COS JudicIA</b><br><span style="font-size:.8rem; opacity:.85">Extractor de Pagarés</span></span></div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown('<div class="sidebar-user">👤 <b>Operador</b><span style="opacity:.7"> | COS</span></div>', unsafe_allow_html=True)
-    menu = st.radio("Menú", ["📄 Subir pagarés", "🧠 Extracción IA", "✏️ Corrección manual", "📊 Histórico / Excel"], label_visibility="collapsed")
-    st.markdown('<span class="badge">v1.3 UI Avanzada</span>', unsafe_allow_html=True)
+st.sidebar.title("📚 Navegación")
+st.sidebar.markdown("""
+<a href="#subir" style="text-decoration:none;">📤 Subir pagaré</a><br>
+<a href="#ia" style="text-decoration:none;">🤖 Extracción IA</a><br>
+<a href="#correccion" style="text-decoration:none;">✏️ Corrección manual</a><br>
+<a href="#exportar" style="text-decoration:none;">📊 Exportar resultados</a>
+""", unsafe_allow_html=True)
 
-st.markdown(
-    """
-<div class="app-header">
-  <div class="searchbox">🔎 <input placeholder="Buscar por cédula, nombre o número de pagaré..."/></div>
-  <div class="badge">Ayuda</div>
-  <div class="badge">Perfil</div>
-</div>
-""",
-    unsafe_allow_html=True,
-)
+# Script para scroll suave
+st.markdown("""
+<script>
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+  anchor.addEventListener('click', function(e) {
+    e.preventDefault();
+    document.querySelector(this.getAttribute('href')).scrollIntoView({
+      behavior: 'smooth'
+    });
+  });
+});
+</script>
+""", unsafe_allow_html=True)
 
 # =========================
-# 📄 SUBIR PAGARÉS
+# 📤 SUBIR PAGARÉ
 # =========================
-if menu == "📄 Subir pagarés":
-    st.markdown('<div class="section-title">📤 Carga de pagarés</div>', unsafe_allow_html=True)
-    tipo_doc = st.radio("Tipo de archivo:", ["📄 PDF", "📸 Imágenes"], horizontal=True)
-    modo_label = st.radio("Modo de extracción:", ["🟢 Económico (rápido)", "🧠 Auditoría (alta precisión)"], horizontal=True)
-    modo = "economico" if "Económico" in modo_label else "auditoria"
-    cabecera_bytes = manuscrita_bytes = None
-    pdf = st.file_uploader("Sube el pagaré", type=["pdf", "jpg", "jpeg", "png"])
+st.markdown('<h2 id="subir">📤 1️⃣ Subir pagaré</h2>', unsafe_allow_html=True)
+tipo_doc = st.radio("Tipo de archivo:", ["📄 PDF", "📸 Imágenes"])
+modo_proceso = st.radio("Modo de extracción:", ["🟢 Económico (rápido)", "🧠 Auditoría (alta precisión)"])
+modo_proceso = "economico" if "Económico" in modo_proceso else "auditoria"
+
+cabecera_bytes, manuscrita_bytes = None, None
+if tipo_doc == "📄 PDF":
+    pdf = st.file_uploader("Sube el pagaré en PDF", type=["pdf"])
     if pdf:
-        if pdf.name.endswith(".pdf"):
+        try:
             cab, man, imgs = pdf_a_imagenes(pdf.read())
-        else:
-            imgs = [Image.open(pdf)]
-            cab, man = pdf.read(), pdf.read()
-        st.image(imgs, caption=["Cabecera", "Parte manuscrita"], use_container_width=True)
-        st.session_state["cab"], st.session_state["man"] = mejorar_imagen(cab), mejorar_imagen(man)
-        if st.button("🚀 Analizar con IA"):
-            st.markdown('<div class="ia-loader">🧠 Estamos trabajando en ello... analizando tu pagaré, por favor espera unos segundos.</div>', unsafe_allow_html=True)
+            st.image(imgs, caption=["Cabecera", "Parte manuscrita"], use_container_width=True)
+            cabecera_bytes, manuscrita_bytes = mejorar_imagen(cab), mejorar_imagen(man)
+        except Exception as e:
+            st.error(f"Error al procesar PDF: {e}")
+else:
+    cab = st.file_uploader("Cabecera", type=["jpg", "jpeg", "png"])
+    man = st.file_uploader("Parte manuscrita", type=["jpg", "jpeg", "png"])
+    if cab and man:
+        col1, col2 = st.columns(2)
+        col1.image(cab, caption="Cabecera", use_container_width=True)
+        col2.image(man, caption="Parte manuscrita", use_container_width=True)
+        cabecera_bytes, manuscrita_bytes = mejorar_imagen(cab.read()), mejorar_imagen(man.read())
+
+# =========================
+# 🤖 EXTRACCIÓN IA
+# =========================
+st.markdown('<h2 id="ia">🤖 2️⃣ Extracción IA y Validación</h2>', unsafe_allow_html=True)
+if cabecera_bytes and manuscrita_bytes:
+    if st.button("🚀 Ejecutar IA") and not st.session_state.procesando:
+        st.session_state.procesando = True
+        with st.spinner("Procesando imágenes..."):
             prompt_cab = """
-Extrae:
-- Número de pagaré
+Extrae los siguientes datos del pagaré (parte superior):
+- Número de pagaré (si aparece)
 - Ciudad
 - Día (en letras)
 - Día (en número)
@@ -289,102 +208,76 @@ Extrae:
 - Año (en número)
 - Valor en letras
 - Valor en números
-Devuélvelo en JSON.
+
+Devuélvelo en formato JSON con esas claves exactas:
+{
+  "Numero de Pagare": "",
+  "Ciudad": "",
+  "Dia (en letras)": "",
+  "Dia (en numero)": "",
+  "Mes": "",
+  "Año (en letras)": "",
+  "Año (en numero)": "",
+  "Valor en letras": "",
+  "Valor en numeros": ""
+}
 """
             prompt_man = """
-Extrae:
-- Nombre del Deudor
-- Cedula
-- Direccion
-- Ciudad
-- Telefono
-- Fecha de Firma
-- Ciudad de Firma
-Devuélvelo en JSON.
+Extrae los siguientes datos manuscritos del pagaré:
+- "Nombre del Deudor"
+- "Cedula"
+- "Direccion"
+- "Ciudad"
+- "Telefono"
+- "Fecha de Firma"
+- "Ciudad de Firma"
+Devuélvelo estrictamente en formato JSON con esas mismas claves exactas.
 """
-            cab = extraer_json_vision(st.session_state["cab"], prompt_cab)
-            man = extraer_json_vision(st.session_state["man"], prompt_man)
-            st.session_state.ultimo_registro = {**cab, **man}
-            st.markdown(
-                "<div class='success-banner'>✅ Extracción completada correctamente.<br><small>Haz clic en <b>🧠 Extracción IA</b> para continuar al siguiente paso.</small></div>",
-                unsafe_allow_html=True,
-            )
-
-# =========================
-# 🧠 EXTRACCIÓN IA
-# =========================
-if menu == "🧠 Extracción IA":
-    if st.session_state.ultimo_registro:
-        df = pd.DataFrame([st.session_state.ultimo_registro]).T.reset_index()
-        df.columns = ["Campo", "Valor"]
-        st.dataframe(df, use_container_width=True)
-        if st.button("✏️ Abrir editor de campos"):
-            st.session_state.drawer_payload = st.session_state.ultimo_registro.copy()
-            st.session_state.drawer_open = True
-    else:
-        st.info("No hay pagarés analizados todavía.")
+            cab = extraer_json_vision(cabecera_bytes, prompt_cab, modo=modo_proceso)
+            man = extraer_json_vision(manuscrita_bytes, prompt_man, modo=modo_proceso)
+            data = {**cab, **man}
+            st.session_state.ultimo_registro = data
+        st.session_state.procesando = False
+        st.success("✅ Extracción completada correctamente.")
+        st.json(data)
 
 # =========================
 # ✏️ CORRECCIÓN MANUAL
 # =========================
-if menu == "✏️ Corrección manual":
-    if st.session_state.ultimo_registro:
-        df = pd.DataFrame([st.session_state.ultimo_registro]).T.reset_index()
-        df.columns = ["Campo", "Valor"]
-        st.dataframe(df, use_container_width=True)
-        if st.button("✏️ Abrir editor de campos"):
-            st.session_state.drawer_payload = st.session_state.ultimo_registro.copy()
-            st.session_state.drawer_open = True
-    else:
-        st.info("No hay datos para editar.")
+st.markdown('<h2 id="correccion">✏️ 3️⃣ Validación y Corrección Manual</h2>', unsafe_allow_html=True)
+if st.session_state.ultimo_registro:
+    data = st.session_state.ultimo_registro
+    data_edit = {}
+    cambios = []
+    for campo, valor in data.items():
+        nuevo = st.text_input(campo, str(valor))
+        data_edit[campo] = nuevo
+        if str(nuevo).strip() != str(valor).strip():
+            cambios.append(campo)
+    col_guardar, col_limpiar = st.columns([2,1])
+    with col_guardar:
+        if st.button("💾 Guardar registro"):
+            registro = data_edit.copy()
+            registro["Campos Modificados"] = ", ".join(cambios) if cambios else "Sin cambios"
+            registro["Editado Manualmente"] = "Sí" if cambios else "No"
+            registro["Modo"] = modo_proceso
+            registro["Fecha Registro"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.session_state.pagares_data.append(registro)
+            st.success(f"✅ Registro guardado correctamente ({len(cambios)} cambios).")
+    with col_limpiar:
+        if st.button("🧹 Limpiar tabla"):
+            st.session_state.pagares_data = []
+            st.session_state.ultimo_registro = None
+            st.success("🧾 Tabla vaciada correctamente. Puedes empezar de nuevo.")
 
 # =========================
-# 📊 HISTÓRICO / EXCEL
+# 📊 EXPORTAR RESULTADOS
 # =========================
-if menu == "📊 Histórico / Excel":
-    if st.session_state.pagares_data:
-        df_hist = pd.DataFrame(st.session_state.pagares_data)
-        st.dataframe(df_hist, use_container_width=True)
-        excel_io = io.BytesIO()
-        df_hist.to_excel(excel_io, index=False, engine="openpyxl")
-        excel_io.seek(0)
-        st.download_button("⬇️ Descargar Excel", data=excel_io, file_name="resultados_pagares.xlsx")
-    else:
-        st.info("Aún no hay registros guardados.")
-
-# =========================
-# 🧾 EDITOR INFERIOR
-# =========================
-def render_editor():
-    st.markdown("<hr><div class='section-title'>✏️ Editar campos del pagaré</div>", unsafe_allow_html=True)
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    updated = {}
-    cols = st.columns(2)
-    campos = list(st.session_state.drawer_payload.items())
-    mitad = len(campos) // 2 or 1
-    for i, (campo, valor) in enumerate(campos):
-        col = cols[0] if i < mitad else cols[1]
-        with col:
-            updated[campo] = st.text_input(campo, str(valor))
-    st.markdown("</div>", unsafe_allow_html=True)
-    col1, col2 = st.columns(2)
-    with col1:
-        cancel = st.button("❌ Cancelar edición")
-    with col2:
-        save = st.button("💾 Guardar cambios")
-    if cancel:
-        st.session_state.drawer_open = False
-        st.info("Edición cancelada.")
-    if save:
-        cambios = [k for k, v in updated.items() if str(v).strip() != str(st.session_state.ultimo_registro.get(k, '')).strip()]
-        registro = updated.copy()
-        registro["Campos Modificados"] = ", ".join(cambios) if cambios else "Sin cambios"
-        registro["Editado Manualmente"] = "Sí" if cambios else "No"
-        registro["Fecha Registro"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.pagares_data.append(registro)
-        st.session_state.ultimo_registro = updated
-        st.session_state.drawer_open = False
-        st.success(f"✅ Guardado correctamente ({len(cambios)} cambios).")
-
-if st.session_state.drawer_open:
-    render_editor()
+st.markdown('<h2 id="exportar">📊 4️⃣ Exportar resultados a Excel</h2>', unsafe_allow_html=True)
+if st.session_state.pagares_data:
+    df = pd.DataFrame(st.session_state.pagares_data)
+    st.dataframe(df, use_container_width=True)
+    excel_io = io.BytesIO()
+    df.to_excel(excel_io, index=False, engine="openpyxl")
+    excel_io.seek(0)
+    st.download_button("⬇️ Descargar Excel con resultados", data=excel_io, file_name="resultados_pagares.xlsx")
