@@ -254,6 +254,7 @@ if st.session_state.pagares_data:
     # ======= REPORTERÍA SUPERIOR =======
     total_pagares = len(df)
 
+    # Contar modificados
     if "Editado Manualmente" in df.columns:
         modificados = int((df["Editado Manualmente"].astype(str).str.lower() == "sí").sum())
     elif "Campos Modificados" in df.columns:
@@ -261,12 +262,18 @@ if st.session_state.pagares_data:
     else:
         modificados = 0
 
+    # Calcular efectividad
     if "score" in df.columns:
         promedio_score = pd.to_numeric(df["score"], errors="coerce").mean()
         if promedio_score <= 1:
             promedio_score *= 100
     else:
-        promedio_score = None
+        # Si no hay 'score', calcular efectividad como % de registros sin cambios manuales
+        if "Editado Manualmente" in df.columns:
+            sin_cambios = int((df["Editado Manualmente"].astype(str).str.lower() != "sí").sum())
+            promedio_score = (sin_cambios / total_pagares) * 100 if total_pagares else 0
+        else:
+            promedio_score = None
 
     porcentaje_modificados = (modificados / total_pagares * 100) if total_pagares else 0
 
