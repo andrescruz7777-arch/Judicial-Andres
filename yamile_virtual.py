@@ -3,12 +3,44 @@ import pandas as pd
 import io
 
 # =========================
-# 📊 HISTÓRICO / EXCEL CON REPORTERÍA SUPERIOR
+# ⚙️ CONFIGURACIÓN INICIAL
 # =========================
-if menu == "📊 Histórico / Excel":
-    if st.session_state.pagares_data:
+st.set_page_config(page_title="💼 Extractor de Pagarés", layout="wide")
+
+st.title("💼 EXTRACTOR DE PAGARÉS - CONTACTO SOLUTIONS")
+
+# =========================
+# 🧭 MENÚ PRINCIPAL
+# =========================
+menu = st.sidebar.radio(
+    "Menú principal",
+    ["🏠 Inicio", "📤 Cargar pagarés", "📊 Histórico / Excel"],
+    index=2  # por defecto abre el histórico
+)
+
+# =========================
+# 🏠 SECCIÓN INICIO (Opcional)
+# =========================
+if menu == "🏠 Inicio":
+    st.markdown("""
+    ### 👋 Bienvenido al sistema Extractor de Pagarés
+    Carga, analiza y consolida los datos de los pagarés de forma automática con IA.
+    Usa el menú lateral para navegar entre las secciones.
+    """)
+
+# =========================
+# 📤 SECCIÓN DE CARGA (Ejemplo)
+# =========================
+elif menu == "📤 Cargar pagarés":
+    st.info("Aquí iría tu módulo actual de carga de archivos y extracción con IA.")
+
+# =========================
+# 📊 HISTÓRICO / EXCEL (CON REPORTERÍA SUPERIOR)
+# =========================
+elif menu == "📊 Histórico / Excel":
+    if st.session_state.get("pagares_data"):
         # Convertir la lista de pagarés a DataFrame
-        df_hist = pd.DataFrame(st.session_state.pagares_data)
+        df_hist = pd.DataFrame(st.session_state["pagares_data"])
 
         # =========================
         # 📈 ENCABEZADO DE REPORTERÍA
@@ -98,3 +130,4 @@ def render_editor():
             df_hist.iloc[idx] = pagaré
             st.session_state.pagares_data = df_hist.to_dict(orient="records")
             st.success("✅ Registro actualizado correctamente.")
+
