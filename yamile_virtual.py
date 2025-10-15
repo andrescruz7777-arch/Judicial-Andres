@@ -1,263 +1,100 @@
 import streamlit as st
 import pandas as pd
-from PIL import Image
-import io, base64, json, re, datetime, fitz
-import openai
+import io
 
 # =========================
-# ⚙️ CONFIGURACIÓN INICIAL
+# 📊 HISTÓRICO / EXCEL CON REPORTERÍA SUPERIOR
 # =========================
-st.set_page_config(page_title="Extractor de Pagarés — Abogados COl 🇨🇴", layout="wide")
-st.title("✍️ Extractor de Pagarés con IA JUDIC-IA-L 🇨🇴 Abogados COL ⚖️")
+if menu == "📊 Histórico / Excel":
+    if st.session_state.pagares_data:
+        # Convertir la lista de pagarés a DataFrame
+        df_hist = pd.DataFrame(st.session_state.pagares_data)
 
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+        # =========================
+        # 📈 ENCABEZADO DE REPORTERÍA
+        # =========================
+        total_pagares = len(df_hist)
 
-# =========================
-# VARIABLES GLOBALES
-# =========================
-if "pagares_data" not in st.session_state:
-    st.session_state.pagares_data = []
-if "ultimo_registro" not in st.session_state:
-    st.session_state.ultimo_registro = None
-if "procesando" not in st.session_state:
-    st.session_state.procesando = False
+        # Contar pagarés modificados (según campo disponible)
+        if "modified" in df_hist.columns:
+            modificados = int(df_hist["modified"].astype(bool).sum())
+        elif "status" in df_hist.columns:
+            modificados = int(df_hist["status"].astype(str).str.lower().str.contains("modific").sum())
+        else:
+            modificados = 0
 
-# =========================
-# FUNCIONES UTILITARIAS
-# =========================
-def mejorar_imagen(im_bytes):
-    """Escala de grises + aumento de resolución."""
-    img = Image.open(io.BytesIO(im_bytes)).convert("L")
-    img = img.resize((img.width * 2, img.height * 2))
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
+        # Calcular promedio de score o match_score
+        if "match_score" in df_hist.columns:
+            promedio_score = pd.to_numeric(df_hist["match_score"], errors="coerce").mean()
+        elif "score" in df_hist.columns:
+            promedio_score = pd.to_numeric(df_hist["score"], errors="coerce").mean()
+        else:
+            promedio_score = None
 
-def pdf_a_imagenes(pdf_bytes):
-    """Convierte primera y última página del PDF en imágenes PNG."""
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    if len(doc) == 0:
-        raise ValueError("PDF vacío o dañado.")
-    pages = [doc.load_page(0), doc.load_page(len(doc)-1)]
-    imgs = []
-    for p in pages:
-        pix = p.get_pixmap(dpi=200)
-        imgs.append(Image.open(io.BytesIO(pix.tobytes("png"))))
-    cab, man = io.BytesIO(), io.BytesIO()
-    imgs[0].save(cab, format="PNG")
-    imgs[1].save(man, format="PNG")
-    return cab.getvalue(), man.getvalue(), imgs
+        # Convertir score de 0–1 a porcentaje si aplica
+        if promedio_score and promedio_score <= 1:
+            promedio_score *= 100
 
-def limpiar_json(txt):
-    try:
-        i0, i1 = txt.index("{"), txt.rindex("}") + 1
-        return txt[i0:i1]
-    except:
-        return "{}"
+        # Calcular porcentaje de modificados
+        porcentaje_modificados = (modificados / total_pagares * 100) if total_pagares else 0
 
-def letras_a_int(texto):
-    """Convierte número en letras a entero básico."""
-    texto = texto.lower().replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ú","u")
-    unidades = {
-        "uno":1,"dos":2,"tres":3,"cuatro":4,"cinco":5,"seis":6,"siete":7,"ocho":8,"nueve":9,
-        "diez":10,"veinte":20,"treinta":30,"cuarenta":40,"cincuenta":50,"sesenta":60,"setenta":70,
-        "ochenta":80,"noventa":90,"cien":100,"mil":1000,"millon":1000000,"millones":1000000
-    }
-    total = 0
-    for p in texto.split():
-        if p in unidades:
-            total += unidades[p]
-    return total
+        # Mostrar resumen superior con métricas
+        st.markdown("---")
+        st.subheader("📈 Resumen de extracción")
 
-def valores_consistentes(letras, numeros):
-    try:
-        n = int(re.sub(r"[^\d]", "", str(numeros)))
-        return n == letras_a_int(letras)
-    except:
-        return False
+        col1, col2, col3 = st.columns(3)
+        col1.metric("🧾 Pagarés procesados", total_pagares)
+        col2.metric("✏️ Pagarés modificados", f"{modificados}", f"{porcentaje_modificados:.1f}%")
+        if promedio_score is not None:
+            col3.metric("✅ Efectividad promedio", f"{promedio_score:.1f}%", help="Promedio de coincidencia OCR / campos extraídos")
+        else:
+            col3.metric("✅ Efectividad promedio", "N/A")
 
-def extraer_json_vision(im_bytes, prompt, modo="auditoria"):
-    """Procesamiento IA: 1 pasada (económica) o 3 pasadas (auditoría)."""
-    def call(extra=""):
-        resp = openai.chat.completions.create(
-            model="gpt-4o",
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": "Eres experto en pagarés colombianos. Devuelve solo JSON estricto."},
-                {"role": "user", "content": prompt + extra},
-                {"role": "user", "content": [
-                    {"type": "image_url", "image_url": {
-                        "url": f"data:image/png;base64,{base64.b64encode(im_bytes).decode()}",
-                        "detail": "high"
-                    }}
-                ]}
-            ],
-            max_tokens=1000,
+        st.markdown("---")
+
+        # =========================
+        # 📜 TABLA DE HISTÓRICO
+        # =========================
+        st.subheader("📜 Histórico de pagarés procesados")
+        st.dataframe(df_hist, use_container_width=True, height=440)
+
+        # =========================
+        # 💾 DESCARGA DE EXCEL
+        # =========================
+        excel_io = io.BytesIO()
+        df_hist.to_excel(excel_io, index=False, engine="openpyxl")
+        excel_io.seek(0)
+        st.download_button(
+            "⬇️ Descargar Excel",
+            data=excel_io,
+            file_name="resultados_pagares.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        return json.loads(limpiar_json(resp.choices[0].message.content))
 
-    if modo == "economico":
-        return call("\nModo rápido, interpreta texto visible.")
     else:
-        o1 = call("\nModo: Preciso.")
-        o2 = call("\nModo: Interpretativo.")
-        o3 = call("\nModo: Verificación.")
-        final = {}
-        keys = set(o1.keys()) | set(o2.keys()) | set(o3.keys())
-        for k in keys:
-            vals = [str(o.get(k, "")).strip() for o in [o1, o2, o3] if o.get(k)]
-            if not vals:
-                final[k] = ""
-            elif any(vals.count(v) >= 2 for v in vals):
-                final[k] = max(vals, key=vals.count)
-            else:
-                final[k] = max(vals, key=len)
-        return final
+        st.info("Aún no hay registros guardados.")
 
 # =========================
-# INTERFAZ DE USUARIO
+# 🧾 FORMULARIO INFERIOR DE EDICIÓN
 # =========================
-st.header("1️⃣ Subir pagaré")
-tipo_doc = st.radio("Tipo de archivo:", ["📄 PDF", "📸 Imágenes"])
-modo_proceso = st.radio("Modo de extracción:", ["🟢 Económico (rápido)", "🧠 Auditoría (alta precisión)"])
-modo_proceso = "economico" if "Económico" in modo_proceso else "auditoria"
+def render_editor():
+    st.markdown('<hr>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">✏️ Editar registro seleccionado</div>', unsafe_allow_html=True)
 
-cabecera_bytes, manuscrita_bytes = None, None
-if tipo_doc == "📄 PDF":
-    pdf = st.file_uploader("Sube el pagaré en PDF", type=["pdf"])
-    if pdf:
-        try:
-            cab, man, imgs = pdf_a_imagenes(pdf.read())
-            st.image(imgs, caption=["Cabecera", "Parte manuscrita"], use_container_width=True)
-            cabecera_bytes, manuscrita_bytes = mejorar_imagen(cab), mejorar_imagen(man)
-        except Exception as e:
-            st.error(f"Error al procesar PDF: {e}")
-else:
-    cab = st.file_uploader("Cabecera", type=["jpg", "jpeg", "png"])
-    man = st.file_uploader("Parte manuscrita", type=["jpg", "jpeg", "png"])
-    if cab and man:
-        col1, col2 = st.columns(2)
-        col1.image(cab, caption="Cabecera", use_container_width=True)
-        col2.image(man, caption="Parte manuscrita", use_container_width=True)
-        cabecera_bytes, manuscrita_bytes = mejorar_imagen(cab.read()), mejorar_imagen(man.read())
+    if "selected_index" not in st.session_state or st.session_state.selected_index is None:
+        st.warning("Selecciona un pagaré en la tabla para editarlo.")
+        return
 
-# =========================
-# PROCESAR IA
-# =========================
-if cabecera_bytes and manuscrita_bytes:
-    st.divider()
-    st.header("2️⃣ Extracción IA y Validación")
+    idx = st.session_state.selected_index
+    df_hist = pd.DataFrame(st.session_state.pagares_data)
+    pagaré = df_hist.iloc[idx].to_dict()
 
-    if st.button("🚀 Ejecutar IA") and not st.session_state.procesando:
-        st.session_state.procesando = True
-        with st.spinner("Procesando imágenes..."):
-            prompt_cab = """
-Extrae los siguientes datos del pagaré (parte superior):
-- Número de pagaré (si aparece)
-- Ciudad
-- Día (en letras)
-- Día (en número)
-- Mes
-- Año (en letras)
-- Año (en número)
-- Valor en letras
-- Valor en números
-
-Devuélvelo en formato JSON con esas claves exactas:
-{
-  "Numero de Pagare": "",
-  "Ciudad": "",
-  "Dia (en letras)": "",
-  "Dia (en numero)": "",
-  "Mes": "",
-  "Año (en letras)": "",
-  "Año (en numero)": "",
-  "Valor en letras": "",
-  "Valor en numeros": ""
-}
-"""
-
-            prompt_man = """
-Extrae los siguientes datos manuscritos del pagaré:
-
-- "Nombre del Deudor": el nombre completo de quien firma el pagaré.
-- "Cedula": el número de identificación del deudor.
-- "Direccion": dirección completa (calle, carrera, número, barrio si aparece).
-- "Ciudad": la ciudad asociada a la dirección anterior (donde reside el deudor).
-- "Telefono": número de contacto manuscrito.
-- "Fecha de Firma": la fecha completa en que se firmó el pagaré.
-- "Ciudad de Firma": la ciudad donde se firmó el pagaré, que normalmente aparece junto a la fecha o antes del nombre del deudor (por ejemplo: “Montería, 2 de marzo de 2023” → extraer “Montería”).
-
-Devuélvelo estrictamente en formato JSON con esas mismas claves exactas:
-{
-  "Nombre del Deudor": "",
-  "Cedula": "",
-  "Direccion": "",
-  "Ciudad": "",
-  "Telefono": "",
-  "Fecha de Firma": "",
-  "Ciudad de Firma": ""
-}
-"""
-
-            cab = extraer_json_vision(cabecera_bytes, prompt_cab, modo=modo_proceso)
-            man = extraer_json_vision(manuscrita_bytes, prompt_man, modo=modo_proceso)
-            data = {**cab, **man}
-            st.session_state.ultimo_registro = data
-        st.session_state.procesando = False
-        st.success("✅ Extracción completada correctamente.")
-        st.json(data)
-
-# =========================
-# CORRECCIÓN Y GUARDADO
-# =========================
-if st.session_state.ultimo_registro:
-    st.divider()
-    st.header("3️⃣ Validación y Corrección Manual")
-
-    data = st.session_state.ultimo_registro
-    data_edit = {}
-    cambios = []
-
-    for campo, valor in data.items():
-        nuevo = st.text_input(campo, str(valor))
-        data_edit[campo] = nuevo
-        if str(nuevo).strip() != str(valor).strip():
-            cambios.append(campo)
-
-    col_guardar, col_limpiar = st.columns([2,1])
-    with col_guardar:
-        if st.button("💾 Guardar registro"):
-            registro = data_edit.copy()
-            registro["Campos Modificados"] = ", ".join(cambios) if cambios else "Sin cambios"
-            registro["Editado Manualmente"] = "Sí" if cambios else "No"
-            registro["Modo"] = modo_proceso
-            registro["Fecha Registro"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            st.session_state.pagares_data.append(registro)
-            st.success(f"✅ Registro guardado correctamente ({len(cambios)} cambios).")
-
-    with col_limpiar:
-        if st.button("🧹 Limpiar tabla"):
-            st.session_state.pagares_data = []
-            st.session_state.ultimo_registro = None
-            st.success("🧾 Tabla vaciada correctamente. Puedes empezar de nuevo.")
-
-# =========================
-# EXPORTACIÓN A EXCEL
-# =========================
-if st.session_state.pagares_data:
-    st.divider()
-    st.header("4️⃣ Exportar resultados a Excel")
-
-    df = pd.DataFrame(st.session_state.pagares_data)
-    st.dataframe(df, use_container_width=True)
-
-    excel_io = io.BytesIO()
-    df.to_excel(excel_io, index=False, engine="openpyxl")
-    excel_io.seek(0)
-
-    st.download_button(
-        "⬇️ Descargar Excel con resultados",
-        data=excel_io,
-        file_name="resultados_pagares.xlsx"
-    )
+    with st.form("editar_pagares_form"):
+        st.write("Modifica los datos del pagaré y guarda los cambios.")
+        for key, value in pagaré.items():
+            pagaré[key] = st.text_input(key, value if pd.notna(value) else "")
+        submitted = st.form_submit_button("💾 Guardar cambios")
+        if submitted:
+            df_hist.iloc[idx] = pagaré
+            st.session_state.pagares_data = df_hist.to_dict(orient="records")
+            st.success("✅ Registro actualizado correctamente.")
